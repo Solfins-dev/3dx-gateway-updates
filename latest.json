@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.17",
-    "downloadUrl": "https://github.com/Solfins-dev/Web_3DX_ERP_integration/releases",
-    "changelog": "Manifest fetched via gateway proxy — PAT lives only on the server, rotation is transparent to workstations. No more per-machine CADBRIDGE_UPDATES_URL/TOKEN env vars.",
-    "sha256": "0b8b14dd48493d6c8197266883703eaeb67147da2c3c1811b8b0b684b722b7e8"
+    "version": "1.8.18",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.18/CadBridge-Setup.zip",
+    "changelog": "Setup.bat now strips Internet-zone markers from extracted files before launching Setup.ps1 — closes the 'Unknown publisher' UAC and 'Run scripts from Internet?' PowerShell prompts customers would see after a browser-download. First release through the automated cadbridge-v* workflow.",
+    "sha256": "3d4ef79c14e7c9257a4182c005b3471c9777191ccffe0050182f00685ae36bff"
   }
 }
