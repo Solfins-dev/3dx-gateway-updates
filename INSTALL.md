@@ -279,6 +279,35 @@ Each workstation user does this on their own schedule.
 
 ---
 
+## Privacy & telemetry
+
+The gateway sends an **anonymous hourly ping** to Solfins so we know which
+customers are on which version when you call us for support. The payload is:
+
+- Backend version (e.g. `1.0.2`) and last-known CadBridge version
+- An opaque SHA256 of your license ID (we can correlate pings to the
+  customer name in our license registry but the wire payload reveals nothing
+  on its own)
+- A random per-install GUID generated the first time the gateway starts
+- A timestamp
+
+There is **no BOM data, no Pantheon credentials, no 3DX session content, no
+user activity** — only the four fields above. The endpoint is a Cloudflare
+Worker hosted on `*.solfins.com`.
+
+Telemetry is **on by default**. To turn it off:
+
+1. Open `https://<your-gateway-url>/` and log in.
+2. Click **Settings**.
+3. Find the **Telemetry** card under "Licensing & features".
+4. Toggle off. The change persists across restarts.
+
+Turning telemetry off doesn't disable any product feature. The only thing
+you lose is our ability to proactively reach out when we ship a security
+fix for the version you're on.
+
+---
+
 ## Troubleshooting
 
 ### Gateway doesn't start
