@@ -1,13 +1,15 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "backend": {
-    "version": "1.0.1",
+    "version": "1.0.2",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Image hardening — default configuration sanitized, development license no longer bundled. No functional changes."
+    "changelog": "Manifest schema v2 — sha256 field added per artifact. No functional changes to runtime; parser groundwork for Phase 2 auto-apply.",
+    "sha256": null
   },
   "cadBridge": {
     "version": "1.8.17",
     "downloadUrl": "https://github.com/Solfins-dev/Web_3DX_ERP_integration/releases",
-    "changelog": "Manifest fetched via gateway proxy — PAT lives only on the server, rotation is transparent to workstations. No more per-machine CADBRIDGE_UPDATES_URL/TOKEN env vars."
+    "changelog": "Manifest fetched via gateway proxy — PAT lives only on the server, rotation is transparent to workstations. No more per-machine CADBRIDGE_UPDATES_URL/TOKEN env vars.",
+    "sha256": "0b8b14dd48493d6c8197266883703eaeb67147da2c3c1811b8b0b684b722b7e8"
   }
 }
