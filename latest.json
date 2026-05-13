@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "backend": {
-    "version": "1.0.0",
-    "downloadUrl": "https://github.com/Solfins-dev/Web_3DX_ERP_integration/releases",
-    "changelog": "i18n end-to-end (EN + sr-Latn); Updates v1 manifest polling."
+    "version": "1.0.1",
+    "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
+    "changelog": "Image hardening — default configuration sanitized, development license no longer bundled. No functional changes."
   },
   "cadBridge": {
     "version": "1.8.17",
