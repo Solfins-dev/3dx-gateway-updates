@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "backend": {
+    "version": "1.0.0",
+    "downloadUrl": "https://github.com/Solfins-dev/Web_3DX_ERP_integration/releases",
+    "changelog": "i18n end-to-end (EN + sr-Latn); Updates v1 manifest polling."
+  },
+  "cadBridge": {
+    "version": "1.8.17",
+    "downloadUrl": "https://github.com/Solfins-dev/Web_3DX_ERP_integration/releases",
+    "changelog": "Manifest fetched via gateway proxy — PAT lives only on the server, rotation is transparent to workstations. No more per-machine CADBRIDGE_UPDATES_URL/TOKEN env vars."
+  }
+}
