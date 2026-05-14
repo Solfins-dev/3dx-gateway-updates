@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.25",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.25/CadBridge-Setup.zip",
-    "changelog": "Setup.bat now skips the trailing pause on -Unattended success so the tray Apply Update / Rollback flows do not leave a stranded admin console window after the install finishes. Interactive manual installs still pause as before. Errors always pause regardless of -Unattended so failure causes stay readable. Same Setup.bat covers both flows — the only difference is the runtime arg.",
-    "sha256": "f9ef0fbdde0da78d57635f19d8ac4706ab301090a0fde75f014ddacd3cd049e8"
+    "version": "1.8.26",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.26/CadBridge-Setup.zip",
+    "changelog": "Apply Update and Rollback now spawn Setup.bat through cmd.exe instead of directly. ShellExecuteEx with Verb runas on a .bat target was unreliable -- on some Windows configurations the elevation handshake silently failed (no UAC dialog, immediate exit code 1, no install). cmd.exe is a proper elevatable executable so the handshake goes through every time. Bootstrap note: fielded 1.8.20--1.8.25 installs have the buggy spawn pattern and CANNOT auto-apply 1.8.26. Workstations on those versions need one final manual install of 1.8.26 via the gateway download link (https://gateway/api/downloads/CadBridge-Setup.zip) -- from 1.8.26 onwards Apply Update works one-click.",
+    "sha256": "f9e429c8aa1dd26c51b3435ebbc4bb33a9ee2e61f047bcf322375d2bf7167381"
   }
 }
