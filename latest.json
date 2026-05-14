@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.22",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.22/CadBridge-Setup.zip",
-    "changelog": "Tray menu auto-refresh fix + rollback. The OnUpdateAvailable balloon and the 'Check for Updates' click handler have been silently no-oping since 1.8.17 because SynchronizationContext.Current was null inside the tray ctor (NotifyIcon does not trigger the WindowsFormsSyncContext auto-install hook that Form creation does). Result: a freshly-detected update never surfaced as a balloon and the menu never refreshed to show 'Apply update'. Fixed by explicit context install in Program.cs plus defense-in-depth menu rebuild on every right-click via ContextMenuStrip.Opening. Also includes the Phase 2(c) Rollback feature shipped in 1.8.21 (one-deep undo via Setup.ps1 -RollbackFrom). After installing 1.8.22 once manually, all future updates work via the one-click amber 'Apply update' tray item.",
-    "sha256": "baf82c693a3297aee9735c4453a35666f09d77f85b28c4f149fced1f5dfebba8"
+    "version": "1.8.23",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.23/CadBridge-Setup.zip",
+    "changelog": "Adds a SolidWorks/CATIA running-process warning to Setup.ps1 + the tray Apply Update / Rollback balloons. Heavy CAD sessions can hit file locks on the bundled interop DLLs during the file replacement step; the install now prints a yellow warning + pauses 5 seconds when it detects SLDWORKS, CNEXT, CATIA or 3DEXPERIENCE running so the failure mode is easy to triage. Non-blocking — most installs succeed even with CAD running. Also rolls forward 1.8.22's tray menu auto-refresh fix and 1.8.21's tray Rollback feature.",
+    "sha256": "4ed31804a034dd17730983d3449d3a65dcd97127f40cda59fa6a6a6854adde16"
   }
 }
