@@ -117,7 +117,8 @@ Flags:
                               auto:        Caddy with local CA (recommended for LAN)
                               letsencrypt: Caddy with Let's Encrypt (public hostname required)
                               none:        plain HTTP (you provide reverse proxy)
-  --license PATH           License file to copy in (required for first install)
+  --license PATH           License file to copy in (OPTIONAL -- the gateway starts in
+                           "awaiting license" mode if absent; drop the real one in later)
   --telemetry on|off       ADR-015 §7.5 anonymous ping (default: on)
   --helper                 Install Apply Update host helper (ADR-015 Phase 2(a))
   --install-docker yes|no  Auto-install Docker if missing (default: ask)
@@ -307,10 +308,37 @@ prompt_install_dir() {
 
 prompt_hostname() {
     step "Gateway hostname"
-    local detected
-    detected=$(hostname --fqdn 2>/dev/null || hostname)
-    HOSTNAME_FQDN=${ARG_HOSTNAME:-$(prompt_text "Hostname (URL workstations will use)" "$detected")}
+    HOSTNAME_FQDN=${ARG_HOSTNAME:-$(prompt_text "Hostname (URL workstations will use)" "$(detect_fqdn)")}
     ok "Hostname: $HOSTNAME_FQDN"
+}
+
+# Best-effort FQDN detection. `hostname --fqdn` is unreliable -- on hosts
+# without a proper /etc/hosts entry or DNS PTR, it returns the bare short
+# name. Try a series of sources before falling back to it.
+detect_fqdn() {
+    local cand short search
+
+    # 1) hostname --fqdn returns a value with a dot.
+    cand=$(hostname --fqdn 2>/dev/null || true)
+    if [[ "$cand" == *.* ]]; then
+        echo "$cand"; return
+    fi
+
+    # 2) hostname -A lists all FQDNs the kernel knows (one per IPv4/IPv6 addr).
+    cand=$(hostname -A 2>/dev/null | tr ' ' '\n' | grep -m1 '\.' || true)
+    if [[ -n "$cand" ]]; then
+        echo "$cand"; return
+    fi
+
+    # 3) short hostname + first `search` domain from /etc/resolv.conf.
+    short=$(hostname 2>/dev/null)
+    search=$(awk '/^[ \t]*search[ \t]+/ {print $2; exit}' /etc/resolv.conf 2>/dev/null || true)
+    if [[ -n "$short" && -n "$search" ]]; then
+        echo "${short}.${search}"; return
+    fi
+
+    # 4) bare short hostname -- caller will likely want to override.
+    echo "${short:-localhost}"
 }
 
 prompt_tls_mode() {
@@ -354,14 +382,22 @@ prompt_port() {
 
 prompt_license() {
     step "License file"
-    LICENSE_PATH=${ARG_LICENSE:-$(prompt_text "Path to license.lic from Solfins" "")}
-    [[ -n "$LICENSE_PATH" ]] || die "License file is required. Get one from Solfins (or pass --license PATH)."
+    # License is delivered out-of-band by Solfins (email) and is NOT bundled
+    # with the installer. It's also OPTIONAL at install time -- the gateway
+    # starts in an "awaiting license" state if license.lic is empty; the
+    # customer can drop the real file in later + restart the service. This
+    # decouples ordering license from "I want to spin up the stack now".
+    LICENSE_PATH=${ARG_LICENSE:-$(prompt_text "Path to license.lic from Solfins (leave empty if you'll add it later)" "")}
+    if [[ -z "$LICENSE_PATH" ]]; then
+        ok "License: will be added later (gateway starts in 'awaiting license' state)"
+        return
+    fi
     [[ -f "$LICENSE_PATH" ]] || die "License file not found: $LICENSE_PATH"
     ok "License found: $LICENSE_PATH ($(stat -c%s "$LICENSE_PATH") bytes)"
 }
 
 prompt_telemetry() {
-    step "Telemetry (ADR-015 §7.5)"
+    step "Telemetry"
     if [[ -n "$ARG_TELEMETRY" ]]; then
         TELEMETRY_ENABLED=$ARG_TELEMETRY
     else
@@ -377,7 +413,7 @@ EOF
 }
 
 prompt_helper() {
-    step "Apply Update host helper (ADR-015 Phase 2(a))"
+    step "Apply Update host helper"
     if [[ $ARG_HELPER -eq 1 ]]; then
         INSTALL_HELPER=1
     elif [[ $ARG_YES -eq 1 ]]; then
@@ -597,9 +633,19 @@ write_files() {
     fi
     write_env
     ok ".env (mode 600)"
-    cp "$LICENSE_PATH" "$INSTALL_DIR/license.lic"
-    chmod 644 "$INSTALL_DIR/license.lic"
-    ok "license.lic copied"
+    if [[ -n "$LICENSE_PATH" ]]; then
+        cp "$LICENSE_PATH" "$INSTALL_DIR/license.lic"
+        chmod 644 "$INSTALL_DIR/license.lic"
+        ok "license.lic copied"
+    else
+        # Empty placeholder so the bind-mount in docker-compose.yml has
+        # something to point at. Backend's LicenseService will see a 0-byte
+        # file and report "license invalid"; the web UI then shows the
+        # "awaiting license" state until the real file is dropped in.
+        : > "$INSTALL_DIR/license.lic"
+        chmod 644 "$INSTALL_DIR/license.lic"
+        ok "license.lic placeholder (empty -- copy the real one from Solfins later)"
+    fi
     mkdir -p "$INSTALL_DIR/data"
 }
 
@@ -636,13 +682,13 @@ start_stack() {
     # returns 127 and the loop times out even when the app is fine. Docker's
     # own healthcheck (declared in docker-compose.yml) has the same caveat;
     # the container shows "(unhealthy)" cosmetically even when the app
-    # serves traffic perfectly. See known-issues note in install summary.
+    # serves traffic perfectly.
     #
     # Pre-increment `((++attempts))` is intentional: the post-increment form
     # returns the old value (0 first iteration) which trips set -e.
     local attempts=0
-    local check_url="http://localhost:${APP_PORT}/api/license/status"
-    [[ "$TLS_MODE" != "none" ]] && check_url="https://localhost:${APP_PORT}/api/license/status"
+    local check_url
+    check_url=$(build_check_url)
     while (( attempts < 30 )); do
         if curl -ksf --max-time 3 "$check_url" &>/dev/null; then
             ok "Backend healthcheck passed"
@@ -654,24 +700,56 @@ start_stack() {
     warn "Backend didn't pass healthcheck within 90 s. Containers are up; check logs: \`docker logs 3dx-gateway-app\`"
 }
 
+# Builds the URL used by wait-for-health + smoke_test. For HTTP we hit
+# localhost (no Host header sensitivity, no DNS round-trip from the host
+# itself). For HTTPS we use $HOSTNAME_FQDN because Caddy's `tls internal`
+# cert is issued for exactly that name -- localhost wouldn't match and
+# would return a useless name-mismatch from Caddy.
+build_check_url() {
+    if [[ "$TLS_MODE" == "none" ]]; then
+        echo "http://localhost:${APP_PORT}/api/license/status"
+    else
+        echo "https://${HOSTNAME_FQDN}:${APP_PORT}/api/license/status"
+    fi
+}
+
 smoke_test() {
     step "Smoke test"
-    local url="http://localhost:${APP_PORT}"
-    [[ "$TLS_MODE" != "none" ]] && url="https://${HOSTNAME_FQDN}"
+    local url
+    url=$(build_check_url)
     local resp
-    if resp=$(curl -ksSL -w "\nHTTP_CODE:%{http_code}" --max-time 10 "${url}/api/license/status" 2>&1); then
+    if resp=$(curl -ksSL -w "\nHTTP_CODE:%{http_code}" --max-time 10 "$url" 2>&1); then
         local code
         code=$(echo "$resp" | grep "^HTTP_CODE:" | cut -d: -f2)
         local body
         body=$(echo "$resp" | grep -v "^HTTP_CODE:")
         if [[ "$code" == "200" ]]; then
-            ok "${url}/api/license/status returned 200"
+            ok "$url returned 200"
             substep "$(echo "$body" | head -c 200)…"
         else
-            warn "${url}/api/license/status returned $code (probably DNS / certificate trust — check inside the LAN)"
+            warn "$url returned $code (probably DNS / certificate trust — check inside the LAN)"
         fi
     else
-        warn "Could not reach ${url} from localhost (may be a hostname/DNS issue on the host itself; doesn't mean the LAN can't see it)"
+        warn "Could not reach $url from localhost (may be a hostname/DNS issue on the host itself; doesn't mean the LAN can't see it)"
+    fi
+}
+
+# https://host/ for the standard 443; otherwise include the explicit port.
+# Same shape for http on 80. Workstations need to type the URL exactly so
+# omitting a non-standard port produces a connection refused on Caddy.
+build_browser_url() {
+    if [[ "$TLS_MODE" == "none" ]]; then
+        if [[ "$APP_PORT" == "80" ]]; then
+            echo "http://${HOSTNAME_FQDN}/"
+        else
+            echo "http://${HOSTNAME_FQDN}:${APP_PORT}/"
+        fi
+    else
+        if [[ "$APP_PORT" == "443" ]]; then
+            echo "https://${HOSTNAME_FQDN}/"
+        else
+            echo "https://${HOSTNAME_FQDN}:${APP_PORT}/"
+        fi
     fi
 }
 
@@ -681,7 +759,7 @@ print_summary() {
 
 ${C_BOLD}${C_GREEN}✅ 3DX Gateway installed.${C_RESET}
 
-  ${C_BOLD}Open in browser:${C_RESET}  $([[ "$TLS_MODE" != "none" ]] && echo "https://${HOSTNAME_FQDN}/" || echo "http://${HOSTNAME_FQDN}:${APP_PORT}/")
+  ${C_BOLD}Open in browser:${C_RESET}  $(build_browser_url)
   ${C_BOLD}Install dir:${C_RESET}      ${INSTALL_DIR}
   ${C_BOLD}Service:${C_RESET}          systemctl {status|restart|stop} 3dx-gateway
   ${C_BOLD}Logs:${C_RESET}             docker logs -f 3dx-gateway-app
@@ -694,6 +772,16 @@ EOF
                       curl -O http://${HOSTNAME_FQDN}/caddy-ca.crt
                       certutil -addstore -f Root caddy-ca.crt
                     CadBridge Setup.bat does this automatically.
+
+EOF
+    fi
+    if [[ -z "$LICENSE_PATH" ]]; then
+        cat <<EOF
+  ${C_YELLOW}${C_BOLD}License pending:${C_RESET}
+    The gateway is running but will refuse logins until license.lic is
+    provided. When Solfins emails it, drop it in place and restart:
+      sudo cp /path/to/license.lic ${INSTALL_DIR}/license.lic
+      sudo systemctl restart 3dx-gateway
 
 EOF
     fi
@@ -722,7 +810,7 @@ confirm_summary() {
     hostname:     $HOSTNAME_FQDN
     port:         $APP_PORT
     TLS:          $TLS_MODE
-    license:      $LICENSE_PATH
+    license:      ${LICENSE_PATH:-"(pending -- add later from Solfins email)"}
     telemetry:    $TELEMETRY_ENABLED
     helper:       $([[ $INSTALL_HELPER -eq 1 ]] && echo install || echo skip)
 EOF
