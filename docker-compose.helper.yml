@@ -1,4 +1,4 @@
-# Overlay enabling the host-side updater helper (ADR-015 Phase 2(a)).
+# Overlay enabling the host-side updater helper (Apply Update one-click).
 # Apply with:
 #   docker compose -f docker-compose.prod.yml -f docker-compose.helper.yml up -d
 #
