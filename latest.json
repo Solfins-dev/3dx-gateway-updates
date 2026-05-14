@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.20",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.20/CadBridge-Setup.zip",
-    "changelog": "Tray Apply Update (ADR-015 Phase 2(b)). The amber tray menu's 'Apply update — vX.Y.Z' item now downloads + relocates + restarts the agent in one click + one UAC prompt, replacing the previous stop-tray / download / extract / Setup.bat / Press-Enter loop. Setup.ps1 gets -Unattended and -InstallTo switches; the elevated install copies the staged bundle into the existing install dir, preserves server-url.txt, auto-closes on success. SHA256 verification on the gateway path is deferred to Phase 2.1; transport integrity comes from customer-LAN HTTPS today.",
-    "sha256": "470334b01865dc01dedbeb5e4b60ea077c560bacd8118682bf86ceab815e8b1e"
+    "version": "1.8.21",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.21/CadBridge-Setup.zip",
+    "changelog": "Tray Rollback (ADR-015 Phase 2(c)). One-deep undo paired with the forward Apply Update flow from 1.8.20. Each Apply now snapshots the existing install to %LOCALAPPDATA%\CadBridge\rollback\<prev-ver>\ before copying the new bundle in; the tray exposes a 'Rollback to v{prev}' item that re-runs Setup -RollbackFrom <snap> to restore the previous bytes + relaunch the older agent. UAC-declined and missing-snapshot paths surface as soft failures. Bootstrap effect: rollback first becomes usable after a 1.8.21+ install has applied at least one further update.",
+    "sha256": "3023fb75ad469b87f183b16cb6a12522617e3c01bbf9f05dbd969fdde521634e"
   }
 }
