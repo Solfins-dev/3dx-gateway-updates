@@ -1,0 +1,20 @@
+[Unit]
+Description=3DX Gateway updater socket (ADR-015 Phase 2(a))
+PartOf=3dx-gateway-helper.service
+
+[Socket]
+# Unix socket bind-mounted into the gateway container at the same path.
+ListenStream=/run/3dx-gateway-helper.sock
+# 0666 — any process on the host (or in the bind-mounting container) can
+# trigger an update. Risk is bounded: the helper ONLY runs
+# `docker compose pull && up -d` against the canonical compose file; it
+# cannot execute arbitrary commands. Tightening to 0660 + a group later
+# is an additive change that doesn't break the protocol.
+SocketMode=0666
+# One handler process per connection — paired with Accept=yes in the
+# .service unit, systemd templates the service per-connection and pipes
+# stdin/stdout to the socket.
+Accept=yes
+
+[Install]
+WantedBy=sockets.target
