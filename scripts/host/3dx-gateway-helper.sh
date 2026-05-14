@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 3DX Gateway host updater — ADR-015 Phase 2(a).
+# 3DX Gateway host updater (Apply Update helper).
 #
 # Reads ONE command line from stdin (Unix socket connection from systemd
 # socket-activation), writes ONE JSON response to stdout, exits. systemd
