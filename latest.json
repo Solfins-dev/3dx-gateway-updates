@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.21",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.21/CadBridge-Setup.zip",
-    "changelog": "Tray Rollback (ADR-015 Phase 2(c)). One-deep undo paired with the forward Apply Update flow from 1.8.20. Each Apply now snapshots the existing install under LocalAppData/CadBridge/rollback/ before copying the new bundle in; the tray exposes a 'Rollback to v{prev}' item that re-runs Setup with -RollbackFrom pointing at the snapshot, restoring the previous bytes and relaunching the older agent. UAC-declined and missing-snapshot paths surface as soft failures without taking the running agent down. Bootstrap: rollback becomes usable after a 1.8.21+ install has applied at least one further update.",
-    "sha256": "3023fb75ad469b87f183b16cb6a12522617e3c01bbf9f05dbd969fdde521634e"
+    "version": "1.8.22",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.22/CadBridge-Setup.zip",
+    "changelog": "Tray menu auto-refresh fix + rollback. The OnUpdateAvailable balloon and the 'Check for Updates' click handler have been silently no-oping since 1.8.17 because SynchronizationContext.Current was null inside the tray ctor (NotifyIcon does not trigger the WindowsFormsSyncContext auto-install hook that Form creation does). Result: a freshly-detected update never surfaced as a balloon and the menu never refreshed to show 'Apply update'. Fixed by explicit context install in Program.cs plus defense-in-depth menu rebuild on every right-click via ContextMenuStrip.Opening. Also includes the Phase 2(c) Rollback feature shipped in 1.8.21 (one-deep undo via Setup.ps1 -RollbackFrom). After installing 1.8.22 once manually, all future updates work via the one-click amber 'Apply update' tray item.",
+    "sha256": "baf82c693a3297aee9735c4453a35666f09d77f85b28c4f149fced1f5dfebba8"
   }
 }
