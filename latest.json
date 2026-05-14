@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.24",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.24/CadBridge-Setup.zip",
-    "changelog": "Fix Setup.bat dying with 'Setup.ps1 was unexpected at this time' when the install path contains parentheses (e.g. when a browser auto-renames a second download to CadBridge-Setup (1)). The multi-line if-not-exist blocks were re-written as goto-style branches, which sidestep CMD's parens-in-path / parens-in-block parser confusion entirely. Also rolls forward 1.8.23 SW/CATIA running-process warning, 1.8.22 tray menu auto-refresh fix, and 1.8.21 Rollback feature.",
-    "sha256": "16834f5cf8ecdfe673c3cdfa762b57f0d71bb7e4246fb9f07522da98a6bd6768"
+    "version": "1.8.25",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.25/CadBridge-Setup.zip",
+    "changelog": "Setup.bat now skips the trailing pause on -Unattended success so the tray Apply Update / Rollback flows do not leave a stranded admin console window after the install finishes. Interactive manual installs still pause as before. Errors always pause regardless of -Unattended so failure causes stay readable. Same Setup.bat covers both flows — the only difference is the runtime arg.",
+    "sha256": "f9ef0fbdde0da78d57635f19d8ac4706ab301090a0fde75f014ddacd3cd049e8"
   }
 }
