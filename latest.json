@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.19",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.19/CadBridge-Setup.zip",
-    "changelog": "Fixes 1.8.18 startup-hang regression — SolidWorks Interop DLLs are now bundled into the single-file binary so the agent loads on every workstation (1.8.18 JIT-faulted at first request with FileNotFoundException). Plus a defensive StartWebHost restructure so Kestrel binds before any singleton resolution, making any future ctor failure visible in the daily log instead of presenting as a silent hang.",
-    "sha256": "39d832cdd9ecda238e03b9cdde1782fb923c378983307a788085fed74ca7d4b3"
+    "version": "1.8.20",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.20/CadBridge-Setup.zip",
+    "changelog": "Tray Apply Update (ADR-015 Phase 2(b)). The amber tray menu's 'Apply update — vX.Y.Z' item now downloads + relocates + restarts the agent in one click + one UAC prompt, replacing the previous stop-tray / download / extract / Setup.bat / Press-Enter loop. Setup.ps1 gets -Unattended and -InstallTo switches; the elevated install copies the staged bundle into the existing install dir, preserves server-url.txt, auto-closes on success. SHA256 verification on the gateway path is deferred to Phase 2.1; transport integrity comes from customer-LAN HTTPS today.",
+    "sha256": "470334b01865dc01dedbeb5e4b60ea077c560bacd8118682bf86ceab815e8b1e"
   }
 }
