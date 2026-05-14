@@ -88,10 +88,19 @@ shell. It writes files under `C:\ProgramData\3DX-Gateway` by default;
 override with `-InstallDir D:\3dx-gateway` if you prefer a different
 drive. Container auto-start across host reboots relies on Docker
 Desktop's "Start when you log in" setting (Settings -> General).
-The Phase 2(a) Apply Update host helper is **not installed on
-Windows** for v1 -- the web UI's Settings -> Updates card falls
-back to a copy-SSH-command UX for backend updates; CadBridge updates
-on workstations work the same way as on Linux.
+
+The Apply Update host helper is **available on Windows** -- the
+installer offers an optional install step that registers a Scheduled
+Task running `scripts/host/3dx-gateway-helper.ps1` as SYSTEM. The task
+listens on TCP 5171 (auth via a 32-byte token generated at install
+time + stored in `%PROGRAMDATA%\3dx-gateway\helper-token.txt` with
+ACL Admins+SYSTEM only) and lets the web UI's Settings -> Updates
+card trigger `docker compose pull && up -d` from the host. The
+gateway container reaches the helper via `host.docker.internal:5171`
+(Docker Desktop's automatic bridge DNS) -- the `extra_hosts`
+mapping in `docker-compose.helper.windows.yml` is added to the
+compose flags by `install.ps1`. CadBridge updates on workstations
+work the same way as on Linux.
 
 #### Both platforms
 
@@ -417,15 +426,47 @@ docker compose -f docker-compose.prod.yml -f docker-compose.helper.yml up -d
 
 To remove it later: `sudo bash uninstall-helper.sh` and drop the
 `-f docker-compose.helper.yml` from your up command.
-and drop the `-f docker-compose.helper.yml` from your up command.
 
-**Security note.** The helper listens on a Unix socket at
+**Security note (Linux).** The helper listens on a Unix socket at
 `/run/3dx-gateway-helper.sock`. Default mode is `0666` — any process on
 the host (or any container with the same bind-mount) can trigger an
 update. The helper can only run `docker compose pull && up -d` against
 your canonical compose file; it cannot execute arbitrary commands. If
 your threat model needs tighter restriction, edit the SocketMode in
 `/etc/systemd/system/3dx-gateway-helper.socket` after install.
+
+#### Windows: helper as a Scheduled Task
+
+`install.ps1` offers the helper as an optional step (or skip with
+`-Helper off`). When accepted it:
+
+- Fetches `scripts/host/{3dx-gateway-helper,install-helper,uninstall-helper}.ps1`
+  from the public repo.
+- Generates a 32-byte random token, stores it in
+  `%PROGRAMDATA%\3dx-gateway\helper-token.txt` (ACL Admins+SYSTEM only).
+- Copies the helper script to `%PROGRAMDATA%\3dx-gateway\helper.ps1`.
+- Registers a Scheduled Task `3dx-gateway-helper` (AtStartup, runs as
+  SYSTEM, RunLevel=Highest, auto-restart x3 with 1 min interval).
+- Starts the task immediately + smoke-tests PING via 127.0.0.1:5171.
+- Writes `HELPER_TOKEN=<value>` to the install dir's `.env`.
+- Layers `docker-compose.helper.windows.yml` onto the compose flags,
+  which gives the container `host.docker.internal:host-gateway` plus
+  the `Updates__HelperEndpoint=tcp://host.docker.internal:5171` +
+  `Updates__HelperToken=${HELPER_TOKEN}` env vars.
+
+To remove it later: `pwsh scripts\host\uninstall-helper.ps1` (admin).
+Add `-PurgeState` to also wipe `%PROGRAMDATA%\3dx-gateway\` (token +
+status file + last-apply log).
+
+**Security note (Windows).** Helper listens on `0.0.0.0:5171` (host
+bridge binding is required so the container can reach it via
+`host.docker.internal`). Auth is the bearer token shared via `.env`;
+without it the helper returns `{"error":"unauthorized"}` on every
+command. The token file ACL excludes the `Users` group so non-admin
+processes on the same host can't read it. If your host is on a network
+where you don't trust other devices, add a Windows Firewall rule that
+restricts inbound TCP 5171 to the Docker subnet (typically `172.17.0.0/16`
+on Docker Desktop).
 
 ### 4.2 Apply a CadBridge update (each workstation)
 
