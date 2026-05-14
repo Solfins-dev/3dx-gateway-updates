@@ -398,7 +398,10 @@ services:
 $portsBlock
     volumes:
       - app_data:/app/data
-      - ./license.lic:/app/license.lic:ro
+      # license.lic mounted RW so the first-run wizard can write a customer-
+      # uploaded license back to disk; backend only writes signature-validated
+      # content.
+      - ./license.lic:/app/license.lic
     depends_on:
       postgres:
         condition: service_healthy
