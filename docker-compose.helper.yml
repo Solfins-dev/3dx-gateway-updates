@@ -1,0 +1,16 @@
+# Overlay enabling the host-side updater helper (ADR-015 Phase 2(a)).
+# Apply with:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.helper.yml up -d
+#
+# Prerequisite: scripts/host/install-helper.sh ran successfully on the host
+# (creates /run/3dx-gateway-helper.sock via systemd socket activation).
+# Without the helper installed, layering this overlay will fail at "up" with
+# a clear "no such file or directory" — that is the intended fail-fast.
+services:
+  app:
+    volumes:
+      - type: bind
+        source: /run/3dx-gateway-helper.sock
+        target: /var/run/3dx-gateway-helper.sock
+        bind:
+          create_host_path: false
