@@ -16,6 +16,12 @@ services:
     volumes:
       - app_data:/app/data
       - ./license.lic:/app/license.lic:ro
+      # The host-side updater helper socket is NOT mounted here by default
+      # because Docker auto-creates an empty directory at the source path when
+      # the source doesn't exist, which would block a later helper install.
+      # To enable click-to-apply backend updates, run install-helper.sh on the
+      # host (it writes docker-compose.helper.yml), then layer that overlay:
+      #   docker compose -f docker-compose.prod.yml -f docker-compose.helper.yml up -d
     depends_on:
       postgres:
         condition: service_healthy
