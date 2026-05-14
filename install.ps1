@@ -235,9 +235,41 @@ function Resolve-InstallDir {
     Write-Ok "Will install to: $($Script:EffInstallDir)"
 }
 
+function Get-DetectedFqdn {
+    # Best-effort FQDN detection. GetHostByName / GetHostEntry can return the
+    # bare short name on hosts without proper DNS/hosts entries. Try several
+    # sources before falling back.
+
+    # 1) [System.Net.Dns]::GetHostEntry of COMPUTERNAME -- usually returns FQDN
+    try {
+        $h = ([System.Net.Dns]::GetHostEntry($env:COMPUTERNAME)).HostName
+        if ($h -and $h.Contains('.')) { return $h }
+    } catch { }
+
+    # 2) Combine COMPUTERNAME with Win32_ComputerSystem.Domain (set on
+    #    AD-joined boxes, or to "WORKGROUP" otherwise -- we ignore that).
+    try {
+        $domain = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).Domain
+        if ($domain -and $domain -ne 'WORKGROUP' -and $domain -ne '' -and $domain.Contains('.')) {
+            return "$env:COMPUTERNAME.$domain"
+        }
+    } catch { }
+
+    # 3) DNS suffix from network interface
+    try {
+        $dnsSuffix = (Get-DnsClientGlobalSetting -ErrorAction SilentlyContinue).SuffixSearchList | Where-Object { $_ } | Select-Object -First 1
+        if ($dnsSuffix) {
+            return "$env:COMPUTERNAME.$dnsSuffix"
+        }
+    } catch { }
+
+    # 4) Bare short name -- caller will likely want to override.
+    return $env:COMPUTERNAME
+}
+
 function Resolve-Hostname {
     Write-Step "Gateway hostname"
-    $detected = try { ([System.Net.Dns]::GetHostEntry($env:COMPUTERNAME)).HostName } catch { $env:COMPUTERNAME }
+    $detected = Get-DetectedFqdn
     $Script:EffHostname = if ($Hostname) { $Hostname } else {
         Read-TextPrompt "Hostname (URL workstations will use)" $detected
     }
@@ -284,11 +316,17 @@ function Resolve-Port {
 
 function Resolve-License {
     Write-Step "License file"
+    # License is delivered out-of-band by Solfins (email) and is NOT bundled
+    # with the installer. It's OPTIONAL at install time -- the gateway starts
+    # in an "awaiting license" state if license.lic is empty; the customer
+    # can drop the real file in later + restart the service. This decouples
+    # ordering license from "I want to spin up the stack now".
     $Script:EffLicense = if ($License) { $License } else {
-        Read-TextPrompt "Path to license.lic from Solfins" ''
+        Read-TextPrompt "Path to license.lic from Solfins (leave empty if you'll add it later)" ''
     }
     if (-not $Script:EffLicense) {
-        Throw-Stop "License file is required. Get one from Solfins (or pass -License PATH)."
+        Write-Ok "License: will be added later (gateway starts in 'awaiting license' state)"
+        return
     }
     if (-not (Test-Path $Script:EffLicense)) {
         Throw-Stop "License file not found: $($Script:EffLicense)"
@@ -298,7 +336,7 @@ function Resolve-License {
 }
 
 function Resolve-Telemetry {
-    Write-Step "Telemetry (ADR-015 7.5)"
+    Write-Step "Telemetry"
     if ($Telemetry) {
         $Script:EffTelemetry = $Telemetry
     } else {
@@ -481,8 +519,18 @@ function Write-Files {
     }
     Write-EnvFile
     Write-Ok ".env (ACL: Administrators + SYSTEM only)"
-    Copy-Item -Path $Script:EffLicense -Destination (Join-Path $Script:EffInstallDir 'license.lic') -Force
-    Write-Ok "license.lic copied"
+    $licDest = Join-Path $Script:EffInstallDir 'license.lic'
+    if ($Script:EffLicense) {
+        Copy-Item -Path $Script:EffLicense -Destination $licDest -Force
+        Write-Ok "license.lic copied"
+    } else {
+        # Empty placeholder so the bind-mount in docker-compose.yml has
+        # something to point at. Backend's LicenseService will see a 0-byte
+        # file and report "license invalid"; the web UI then shows the
+        # "awaiting license" state until the real file is dropped in.
+        Set-Content -Path $licDest -Value '' -Encoding ASCII
+        Write-Ok "license.lic placeholder (empty -- copy the real one from Solfins later)"
+    }
     New-Item -ItemType Directory -Force -Path (Join-Path $Script:EffInstallDir 'data') | Out-Null
 }
 
@@ -516,12 +564,10 @@ function Start-Stack {
 
     # Wait for app health up to 90 s. Probe from the host via curl-like
     # Invoke-WebRequest -- in-container probe is unreliable because the
-    # backend image doesn't bundle curl.
-    $url = if ($Script:EffTls -eq 'none') {
-        "http://localhost:$($Script:EffPort)/api/license/status"
-    } else {
-        "https://localhost:$($Script:EffPort)/api/license/status"
-    }
+    # backend image doesn't bundle curl. For HTTPS use FQDN (Caddy's
+    # `tls internal` cert is issued for exactly that name); for HTTP
+    # localhost works.
+    $url = Get-CheckUrl
     $passed = $false
     for ($i = 0; $i -lt 30; $i++) {
         try {
@@ -548,13 +594,29 @@ function Start-Stack {
     }
 }
 
-function Invoke-SmokeTest {
-    Write-Step "Smoke test"
-    $url = if ($Script:EffTls -eq 'none') {
+function Get-CheckUrl {
+    # URL used by health-wait + smoke test. HTTP -> localhost; HTTPS -> FQDN
+    # (because Caddy's tls-internal cert is issued for $EffHostname, not
+    # localhost).
+    if ($Script:EffTls -eq 'none') {
         "http://localhost:$($Script:EffPort)/api/license/status"
     } else {
-        "https://localhost:$($Script:EffPort)/api/license/status"
+        "https://$($Script:EffHostname):$($Script:EffPort)/api/license/status"
     }
+}
+
+function Get-BrowserUrl {
+    # https://host/ for the standard 443; otherwise include the explicit port.
+    if ($Script:EffTls -eq 'none') {
+        if ($Script:EffPort -eq 80) { "http://$($Script:EffHostname)/" } else { "http://$($Script:EffHostname):$($Script:EffPort)/" }
+    } else {
+        if ($Script:EffPort -eq 443) { "https://$($Script:EffHostname)/" } else { "https://$($Script:EffHostname):$($Script:EffPort)/" }
+    }
+}
+
+function Invoke-SmokeTest {
+    Write-Step "Smoke test"
+    $url = Get-CheckUrl
     try {
         if ($PSVersionTable.PSVersion.Major -ge 6) {
             $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10 -SkipCertificateCheck
@@ -580,12 +642,7 @@ function Show-Summary {
     Write-Host ''
     Write-Host '[OK] 3DX Gateway installed.' -ForegroundColor Green
     Write-Host ''
-    $url = if ($Script:EffTls -eq 'none') {
-        "http://$($Script:EffHostname):$($Script:EffPort)/"
-    } else {
-        "https://$($Script:EffHostname)/"
-    }
-    Write-Host "  Open in browser:  $url"
+    Write-Host "  Open in browser:  $(Get-BrowserUrl)"
     Write-Host "  Install dir:      $($Script:EffInstallDir)"
     Write-Host "  Compose flags:    $(Get-ComposeFlags)"
     Write-Host "  Logs:             docker logs -f 3dx-gateway-app"
@@ -607,6 +664,14 @@ function Show-Summary {
     Write-Host '    Or use Task Scheduler: trigger "At startup", action "docker compose -f' "$($Script:EffInstallDir)\docker-compose.yml" 'up -d".'
     Write-Host ''
 
+    if (-not $Script:EffLicense) {
+        Write-Host '  License pending:' -ForegroundColor Yellow
+        Write-Host '    The gateway is running but will refuse logins until license.lic is'
+        Write-Host '    provided. When Solfins emails it, drop it in place and restart:'
+        Write-Host "      Copy-Item C:\path\to\license.lic $($Script:EffInstallDir)\license.lic"
+        Write-Host "      docker compose -f $($Script:EffInstallDir)\docker-compose.yml restart app"
+        Write-Host ''
+    }
     Write-Host '  Next steps:'
     Write-Host '    1. Open the URL above + log in with your 3DExperience credentials'
     Write-Host '    2. Settings -> Pantheon credentials (if you use the ERP sync module)'
@@ -627,7 +692,8 @@ function Confirm-Summary {
     Write-Host "    hostname:     $($Script:EffHostname)"
     Write-Host "    port:         $($Script:EffPort)"
     Write-Host "    TLS:          $($Script:EffTls)"
-    Write-Host "    license:      $($Script:EffLicense)"
+    $licDisplay = if ($Script:EffLicense) { $Script:EffLicense } else { '(pending -- add later from Solfins email)' }
+    Write-Host "    license:      $licDisplay"
     Write-Host "    telemetry:    $($Script:EffTelemetry)"
     Write-Host "    helper:       skip (Windows v1)"
     $yn = Read-YesNo 'Proceed?' 'y'
