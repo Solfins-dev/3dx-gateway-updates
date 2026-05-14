@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-3DX Gateway -- Windows Server installer (ADR-015 Phase B initial setup).
+3DX Gateway -- Windows Server installer (initial setup).
 
 .DESCRIPTION
 PowerShell mirror of scripts/install.sh. Same UX, same compose file layout,
@@ -42,7 +42,7 @@ TLS mode: auto | letsencrypt | none. Default: auto.
 Path to license.lic from Solfins. Required.
 
 .PARAMETER Telemetry
-on | off. ADR-015 7.5 anonymous hourly ping. Default: on.
+on | off. Anonymous hourly version ping. Default: on.
 
 .PARAMETER Yes
 Unattended: skip all confirmation prompts and use defaults for unanswered.
@@ -351,7 +351,7 @@ function Resolve-Telemetry {
 
 function Show-Helper-Note {
     Write-Step "Apply Update host helper"
-    Write-Substep "Skipped on Windows -- the ADR-015 Phase 2(a) helper is systemd-only for v1."
+    Write-Substep "Skipped on Windows -- the Apply Update helper is systemd-only for v1."
     Write-Substep "The web UI's Settings -> Updates card will fall back to its 'Copy SSH command'"
     Write-Substep "UX, or you can run 'docker compose pull && up -d' manually from the install dir."
     Write-Ok "Helper: skip (Windows v1 limitation)"
@@ -495,16 +495,28 @@ TELEMETRY=$($Script:EffTelemetry)
     $envPath = Join-Path $Script:EffInstallDir '.env'
     Set-Content -Path $envPath -Value $envContent -Encoding UTF8
 
-    # NTFS ACL: restrict to local Administrators + SYSTEM. .env contains the
-    # generated Postgres password.
+    # NTFS ACL: restrict to local Administrators + SYSTEM + the operator
+    # account that ran the installer (Read). .env contains the generated
+    # Postgres password.
+    #
+    # The operator entry is the non-obvious piece: even though that user is
+    # typically in Administrators, UAC strips the Admins SID from the
+    # non-elevated token. Without an explicit Read ACE for the user, every
+    # subsequent `docker compose up/down/logs` from a regular PowerShell
+    # window fails with "Access is denied" on .env -- compose reads .env
+    # client-side for variable substitution. We grant Read (not Write) so
+    # editing the password still requires elevation.
     $acl = Get-Acl $envPath
     $acl.SetAccessRuleProtection($true, $false)
     $admins = New-Object System.Security.AccessControl.FileSystemAccessRule(
         'BUILTIN\Administrators', 'FullControl', 'Allow')
     $system = New-Object System.Security.AccessControl.FileSystemAccessRule(
         'NT AUTHORITY\SYSTEM', 'FullControl', 'Allow')
+    $operator = New-Object System.Security.AccessControl.FileSystemAccessRule(
+        "$env:USERDOMAIN\$env:USERNAME", 'Read', 'Allow')
     $acl.SetAccessRule($admins)
     $acl.SetAccessRule($system)
+    $acl.SetAccessRule($operator)
     Set-Acl -Path $envPath -AclObject $acl
 }
 
@@ -518,7 +530,7 @@ function Write-Files {
         Write-Ok "docker-compose.tls.yml + Caddyfile ($($Script:EffTls))"
     }
     Write-EnvFile
-    Write-Ok ".env (ACL: Administrators + SYSTEM only)"
+    Write-Ok ".env (ACL: Administrators + SYSTEM full; $env:USERDOMAIN\$env:USERNAME read)"
     $licDest = Join-Path $Script:EffInstallDir 'license.lic'
     if ($Script:EffLicense) {
         Copy-Item -Path $Script:EffLicense -Destination $licDest -Force
@@ -562,30 +574,40 @@ function Start-Stack {
         Pop-Location
     }
 
-    # Wait for app health up to 90 s. Probe from the host via curl-like
-    # Invoke-WebRequest -- in-container probe is unreliable because the
-    # backend image doesn't bundle curl. For HTTPS use FQDN (Caddy's
-    # `tls internal` cert is issued for exactly that name); for HTTP
-    # localhost works.
+    # Wait for app health up to 90 s. Probe from the host via .NET HttpClient
+    # -- in-container probe is unreliable because the backend image doesn't
+    # bundle curl. For HTTPS use FQDN (Caddy's `tls internal` cert is issued
+    # for exactly that name); for HTTP localhost works.
+    #
+    # We use [HttpClient] directly instead of Invoke-WebRequest because the
+    # latter raises PowerShell terminating errors on connection refused /
+    # premature-end during warmup, and Start-Transcript records each one as
+    # a scary `PS>TerminatingError(...)` line even when try/catch swallows
+    # it. .NET exceptions don't surface to the transcript engine the same
+    # way, so the install log stays clean.
     $url = Get-CheckUrl
     $passed = $false
-    for ($i = 0; $i -lt 30; $i++) {
-        try {
-            # PS 5.1 default validates the cert; skip via -SkipCertificateCheck
-            # on PS 7+, or by overriding the ServerCertificateValidationCallback
-            # on PS 5.1.
-            if ($PSVersionTable.PSVersion.Major -ge 6) {
-                $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3 -SkipCertificateCheck
-            } else {
-                [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
-                $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3
+    $handler = [System.Net.Http.HttpClientHandler]::new()
+    # Built-in static delegate that returns true unconditionally. Using a PS
+    # scriptblock here would throw "no Runspace available" when invoked from
+    # HttpClient's TLS validation thread -- the SSL handshake then fails with
+    # the misleading "SSL connection could not be established".
+    $handler.ServerCertificateCustomValidationCallback = [System.Net.Http.HttpClientHandler]::DangerousAcceptAnyServerCertificateValidator
+    $client = [System.Net.Http.HttpClient]::new($handler)
+    $client.Timeout = [TimeSpan]::FromSeconds(3)
+    try {
+        for ($i = 0; $i -lt 30; $i++) {
+            try {
+                $resp = $client.GetAsync($url).GetAwaiter().GetResult()
+                if ($resp.IsSuccessStatusCode) { $passed = $true; break }
+            } catch {
+                # warmup in progress; quiet retry
             }
-            if ($r.StatusCode -eq 200) { $passed = $true; break }
-        } catch {
             Start-Sleep -Seconds 3
-            continue
         }
-        Start-Sleep -Seconds 3
+    } finally {
+        $client.Dispose()
+        $handler.Dispose()
     }
     if ($passed) {
         Write-Ok "Backend healthcheck passed"
@@ -617,23 +639,32 @@ function Get-BrowserUrl {
 function Invoke-SmokeTest {
     Write-Step "Smoke test"
     $url = Get-CheckUrl
+    $handler = [System.Net.Http.HttpClientHandler]::new()
+    # Built-in static delegate that returns true unconditionally. Using a PS
+    # scriptblock here would throw "no Runspace available" when invoked from
+    # HttpClient's TLS validation thread -- the SSL handshake then fails with
+    # the misleading "SSL connection could not be established".
+    $handler.ServerCertificateCustomValidationCallback = [System.Net.Http.HttpClientHandler]::DangerousAcceptAnyServerCertificateValidator
+    $client = [System.Net.Http.HttpClient]::new($handler)
+    $client.Timeout = [TimeSpan]::FromSeconds(10)
     try {
-        if ($PSVersionTable.PSVersion.Major -ge 6) {
-            $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10 -SkipCertificateCheck
-        } else {
-            [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
-            $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10
+        try {
+            $resp = $client.GetAsync($url).GetAwaiter().GetResult()
+            $code = [int]$resp.StatusCode
+            if ($code -eq 200) {
+                Write-Ok "$url returned 200"
+                $body = $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+                if ($body.Length -gt 200) { $body = $body.Substring(0, 200) + '...' }
+                Write-Substep $body
+            } else {
+                Write-Warn2 "$url returned $code (probably DNS / cert trust -- check inside the LAN)"
+            }
+        } catch {
+            Write-Warn2 "Could not reach $url`: $($_.Exception.Message)"
         }
-        if ($r.StatusCode -eq 200) {
-            Write-Ok "$url returned 200"
-            $body = $r.Content
-            if ($body.Length -gt 200) { $body = $body.Substring(0, 200) + '...' }
-            Write-Substep $body
-        } else {
-            Write-Warn2 "$url returned $($r.StatusCode) (probably DNS / cert trust -- check inside the LAN)"
-        }
-    } catch {
-        Write-Warn2 "Could not reach $url`: $($_.Exception.Message)"
+    } finally {
+        $client.Dispose()
+        $handler.Dispose()
     }
 }
 
