@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the 3DX Gateway updater helper — ADR-015 Phase 2(a).
+# Install the 3DX Gateway updater helper (Apply Update one-click backend update).
 #
 # Run on the host (NOT inside the gateway container) as root:
 #   sudo bash scripts/host/install-helper.sh
