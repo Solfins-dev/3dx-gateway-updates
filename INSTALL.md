@@ -52,10 +52,18 @@ every file). Both produce the same end state — a Docker stack at
 
 ### 1.A One-line installer (recommended)
 
-#### Linux
+**Note on the license file.** Solfins emails `license.lic` to you
+separately from this installer (we don't bundle licenses in the public
+installer for security reasons). You can:
 
-Save the `license.lic` Solfins emailed you to `/tmp/license.lic`, then
-run:
+- Provide the license at install time with `--license /path/to/license.lic`
+  (Linux) or `-License C:\path\to\license.lic` (Windows), OR
+- Run the installer first and add the license later — the gateway
+  starts in an "awaiting license" state (containers running, but
+  refuses logins). When Solfins emails the file, drop it in the install
+  directory and restart the service.
+
+#### Linux
 
 ```sh
 curl -sSLO https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/install.sh
@@ -102,7 +110,7 @@ Defaults work for ~80% of installs:
 | Hostname | `hostname --fqdn` of the server | Workstations reach the gateway under a different DNS name |
 | TLS mode | `auto` (Caddy + local CA) | You already run a reverse proxy; pick `none`. Public DNS + ports 80/443 reachable from the internet; pick `letsencrypt` |
 | Port | `443` (TLS) or `5000` (no TLS) | Port is already used; the installer checks and fails clearly |
-| Apply Update helper | Skipped in unattended (`--yes`) mode; install asks Y/N interactively | Saves the one-click "Apply Update" admin button (ADR-015 Phase 2(a)). Optional. |
+| Apply Update helper | Skipped in unattended (`--yes`) mode; install asks Y/N interactively | Enables the one-click "Apply Update" admin button in the web UI. Optional. |
 
 **Unattended/scripted install** for CI or configuration management:
 
