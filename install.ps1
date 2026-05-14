@@ -14,10 +14,10 @@ Differences vs install.sh:
   - No systemd. Customer relies on Docker Desktop's autostart OR adds the
     compose `up -d` command to Task Scheduler / a Windows Service. The
     container `restart: unless-stopped` setting handles in-session restart.
-  - No Apply Update host helper installation -- the Phase 2(a) helper is
-    systemd-socket based and has no Windows port yet. The web UI's Settings
-    Apply Update card falls back to its copy-SSH-command UX for Windows
-    hosts.
+  - Optional Apply Update host helper: a PowerShell Scheduled Task running
+    as SYSTEM that listens on TCP 5171 and runs `docker compose pull && up
+    -d` on demand. The gateway container reaches it via host.docker.internal
+    with a bearer token. Equivalent to the Linux systemd helper.
   - Port check via Get-NetTCPConnection instead of ss.
   - Docker auto-install is unsupported; if Docker is missing we print a
     pointer to docker.com/products/docker-desktop and exit.
@@ -72,6 +72,8 @@ param(
     [string]$License,
     [ValidateSet('on', 'off')]
     [string]$Telemetry,
+    [ValidateSet('on', 'off')]
+    [string]$Helper,
     [switch]$Yes,
     [switch]$DryRun
 )
@@ -95,6 +97,8 @@ $Script:EffPort             = $null
 $Script:EffTls              = $null
 $Script:EffLicense          = $null
 $Script:EffTelemetry        = $null
+$Script:EffHelper           = $null
+$Script:EffHelperToken      = $null
 $Script:EffPostgresPassword = $null
 
 #--- Output helpers ---------------------------------------------------------
@@ -349,12 +353,65 @@ function Resolve-Telemetry {
     Write-Ok "Telemetry: $($Script:EffTelemetry)"
 }
 
-function Show-Helper-Note {
+function Resolve-Helper {
     Write-Step "Apply Update host helper"
-    Write-Substep "Skipped on Windows -- the Apply Update helper is systemd-only for v1."
-    Write-Substep "The web UI's Settings -> Updates card will fall back to its 'Copy SSH command'"
-    Write-Substep "UX, or you can run 'docker compose pull && up -d' manually from the install dir."
-    Write-Ok "Helper: skip (Windows v1 limitation)"
+    if ($Helper) {
+        $Script:EffHelper = $Helper
+    } else {
+        Write-Host "    Optional. Installs a PowerShell Scheduled Task that listens on TCP 5171 and"
+        Write-Host "    handles one-click backend updates from the web UI (Settings -> Updates ->"
+        Write-Host "    Apply Update). Without it the UI falls back to a copy-SSH-command UX."
+        $yn = Read-YesNo "Install Apply Update helper?" "y"
+        $Script:EffHelper = if ($yn -eq 'y') { 'on' } else { 'off' }
+    }
+    Write-Ok "Helper: $($Script:EffHelper)"
+}
+
+function Install-Helper {
+    if ($Script:EffHelper -ne 'on') { return }
+    Write-Step "Installing Apply Update host helper"
+
+    # The helper scripts live in the public repo under scripts/host/. Fetch
+    # them via Invoke-WebRequest into a temp dir, then call install-helper.ps1
+    # which generates a token + registers the Scheduled Task.
+    $tmpdir = Join-Path $env:TEMP "3dx-gateway-helper-$(Get-Random)"
+    New-Item -ItemType Directory -Force -Path $tmpdir | Out-Null
+    try {
+        foreach ($f in @('3dx-gateway-helper.ps1', 'install-helper.ps1', 'uninstall-helper.ps1')) {
+            $url = "$PUBLIC_REPO_BASE/scripts/host/$f"
+            Invoke-WebRequest -Uri $url -OutFile (Join-Path $tmpdir $f) -UseBasicParsing -ErrorAction Stop
+        }
+        Write-Substep "Helper scripts fetched"
+
+        # Build the compose-files string for the helper (must match what we'd
+        # pass to `docker compose -f X -f Y up -d`).
+        $composeFiles = "docker-compose.yml"
+        if ($Script:EffTls -ne 'none') { $composeFiles += " docker-compose.tls.yml" }
+        $composeFiles += " docker-compose.helper.windows.yml"
+
+        $installArgs = @(
+            '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+            '-File', (Join-Path $tmpdir 'install-helper.ps1'),
+            '-InstallDir', $Script:EffInstallDir,
+            '-ComposeFiles', $composeFiles,
+            '-Port', '5171'
+        )
+        $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList $installArgs -Wait -PassThru -NoNewWindow
+        if ($proc.ExitCode -ne 0) {
+            Throw-Stop "install-helper.ps1 exited with code $($proc.ExitCode)"
+        }
+
+        # Read the generated token so we can inject it into the gateway
+        # container's env.
+        $tokenFile = "$env:ProgramData\3dx-gateway\helper-token.txt"
+        if (-not (Test-Path $tokenFile)) {
+            Throw-Stop "install-helper.ps1 succeeded but $tokenFile was not created"
+        }
+        $Script:EffHelperToken = (Get-Content -Path $tokenFile -Raw -Encoding UTF8).Trim()
+        Write-Ok "Helper installed (token captured for container env)"
+    } finally {
+        Remove-Item -Recurse -Force $tmpdir -ErrorAction SilentlyContinue
+    }
 }
 
 #--- File writing -----------------------------------------------------------
@@ -486,14 +543,16 @@ $($Script:EffHostname) {
 }
 
 function Write-EnvFile {
+    $helperLine = if ($Script:EffHelperToken) { "HELPER_TOKEN=$($Script:EffHelperToken)`r`n" } else { "" }
     $envContent = @"
 # 3DX Gateway environment -- generated $(Get-Date -Format 'o') by install.ps1 v$INSTALLER_VERSION.
-# Keep this file out of version control; POSTGRES_PASSWORD is sensitive.
+# Keep this file out of version control; POSTGRES_PASSWORD + HELPER_TOKEN are sensitive.
 POSTGRES_PASSWORD=$($Script:EffPostgresPassword)
 HOSTNAME=$($Script:EffHostname)
 APP_PORT=$($Script:EffPort)
 TLS_MODE=$($Script:EffTls)
 TELEMETRY=$($Script:EffTelemetry)
+$helperLine
 "@
     $envPath = Join-Path $Script:EffInstallDir '.env'
     Set-Content -Path $envPath -Value $envContent -Encoding UTF8
@@ -555,6 +614,9 @@ function Get-ComposeFlags {
     $flags = '-f docker-compose.yml'
     if ($Script:EffTls -ne 'none') {
         $flags += ' -f docker-compose.tls.yml'
+    }
+    if ($Script:EffHelper -eq 'on') {
+        $flags += ' -f docker-compose.helper.windows.yml'
     }
     return $flags
 }
@@ -698,6 +760,14 @@ function Show-Summary {
     Write-Host '    Or use Task Scheduler: trigger "At startup", action "docker compose -f' "$($Script:EffInstallDir)\docker-compose.yml" 'up -d".'
     Write-Host ''
 
+    if ($Script:EffHelper -eq 'on') {
+        Write-Host '  Apply Update helper:' -ForegroundColor Yellow
+        Write-Host '    Installed as Scheduled Task "3dx-gateway-helper" (runs as SYSTEM).'
+        Write-Host '    To uninstall later: pwsh scripts\host\uninstall-helper.ps1 (admin).'
+        Write-Host '    Helper state dir:   %PROGRAMDATA%\3dx-gateway\'
+        Write-Host ''
+    }
+
     if (-not $Script:EffLicense) {
         Write-Host '  License pending:' -ForegroundColor Yellow
         Write-Host '    The gateway is running but will refuse logins until license.lic is'
@@ -729,7 +799,7 @@ function Confirm-Summary {
     $licDisplay = if ($Script:EffLicense) { $Script:EffLicense } else { '(pending -- add later from Solfins email)' }
     Write-Host "    license:      $licDisplay"
     Write-Host "    telemetry:    $($Script:EffTelemetry)"
-    Write-Host "    helper:       skip (Windows v1)"
+    Write-Host "    helper:       $($Script:EffHelper)"
     $yn = Read-YesNo 'Proceed?' 'y'
     if ($yn -ne 'y') {
         Throw-Stop 'Cancelled.'
@@ -751,15 +821,16 @@ function Main {
     Resolve-Port
     Resolve-License
     Resolve-Telemetry
-    Show-Helper-Note
+    Resolve-Helper
     Confirm-Summary
 
     if ($DryRun.IsPresent) {
-        Write-Step 'DRY RUN -- would write files + pull images. Exiting.'
+        Write-Step 'DRY RUN -- would write files + install helper + pull images. Exiting.'
         return
     }
 
     New-PostgresPassword
+    Install-Helper
     Write-Files
     Start-Stack
     Invoke-SmokeTest
