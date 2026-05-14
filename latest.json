@@ -3,13 +3,13 @@
   "backend": {
     "version": "1.0.2",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Manifest schema v2 — sha256 field added per artifact. No functional changes to runtime; parser groundwork for Phase 2 auto-apply.",
+    "changelog": "Manifest schema v2 \u2014 sha256 field added per artifact. No functional changes to runtime; parser groundwork for Phase 2 auto-apply.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.26",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.26/CadBridge-Setup.zip",
-    "changelog": "Apply Update and Rollback now spawn Setup.bat through cmd.exe instead of directly. ShellExecuteEx with Verb runas on a .bat target was unreliable -- on some Windows configurations the elevation handshake silently failed (no UAC dialog, immediate exit code 1, no install). cmd.exe is a proper elevatable executable so the handshake goes through every time. Bootstrap note: fielded 1.8.20--1.8.25 installs have the buggy spawn pattern and CANNOT auto-apply 1.8.26. Workstations on those versions need one final manual install of 1.8.26 via the gateway download link (https://gateway/api/downloads/CadBridge-Setup.zip) -- from 1.8.26 onwards Apply Update works one-click.",
-    "sha256": "f9e429c8aa1dd26c51b3435ebbc4bb33a9ee2e61f047bcf322375d2bf7167381"
+    "version": "1.8.27",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.27/CadBridge-Setup.zip",
+    "changelog": "ADR-015 Phase 2 release. (1) SHA256 verify on Apply Update: agent now downloads from /api/downloads/CadBridge-Setup.zip?raw=true and hashes the bytes locally before letting Setup.bat touch anything; mismatch refuses to install. Legacy v1 manifest without sha256 degrades to warning-log + proceed (no regression for stale gateways). (2) De-elevate launched agent: Setup.ps1 now spawns the new agent at medium IL via a one-shot Scheduled Task (RunLevel=Limited), so the post-install tray runs at the same IL as the reboot-Startup-shortcut path -- ends the Task Manager 'Administrator' inconsistency.",
+    "sha256": "9d356223531297b23e7c2c27a3eabe2740cd6c9725893e93678a54d1b3f622f7"
   }
 }
