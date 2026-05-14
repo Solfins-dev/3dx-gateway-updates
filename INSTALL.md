@@ -52,6 +52,8 @@ every file). Both produce the same end state — a Docker stack at
 
 ### 1.A One-line installer (recommended)
 
+#### Linux
+
 Save the `license.lic` Solfins emailed you to `/tmp/license.lic`, then
 run:
 
@@ -59,6 +61,31 @@ run:
 curl -sSLO https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/install.sh
 sudo bash install.sh
 ```
+
+#### Windows Server
+
+Install Docker Desktop first if you haven't already
+(https://www.docker.com/products/docker-desktop/), launch it once so
+the daemon is running, then in an **elevated PowerShell** run:
+
+```pwsh
+Invoke-WebRequest -UseBasicParsing `
+  https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/install.ps1 `
+  -OutFile $env:TEMP\install.ps1
+& $env:TEMP\install.ps1
+```
+
+The installer auto-elevates if you forgot to launch from an Admin
+shell. It writes files under `C:\ProgramData\3DX-Gateway` by default;
+override with `-InstallDir D:\3dx-gateway` if you prefer a different
+drive. Container auto-start across host reboots relies on Docker
+Desktop's "Start when you log in" setting (Settings -> General).
+The Phase 2(a) Apply Update host helper is **not installed on
+Windows** for v1 -- the web UI's Settings -> Updates card falls
+back to a copy-SSH-command UX for backend updates; CadBridge updates
+on workstations work the same way as on Linux.
+
+#### Both platforms
 
 The installer asks five questions (install dir, hostname, port, TLS
 mode, license file path), runs pre-flight checks (Docker version,
@@ -79,6 +106,7 @@ Defaults work for ~80% of installs:
 
 **Unattended/scripted install** for CI or configuration management:
 
+Linux:
 ```sh
 curl -sSLO https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/install.sh
 sudo bash install.sh -y \
@@ -89,9 +117,20 @@ sudo bash install.sh -y \
     --helper
 ```
 
-Pass `--help` to see all flags. The installer is idempotent: if an
-install already exists at the target directory it refuses with a clear
-error rather than overwriting state.
+Windows:
+```pwsh
+& $env:TEMP\install.ps1 `
+    -Hostname gateway.acme.local `
+    -Port 443 `
+    -Tls auto `
+    -License C:\tmp\acme.lic `
+    -Yes
+```
+
+Pass `--help` (Linux) or `Get-Help install.ps1 -Full` (Windows) to see
+all flags. The installer is idempotent: if an install already exists at
+the target directory it refuses with a clear error rather than
+overwriting state.
 
 **If Docker isn't installed yet,** the installer offers to run the
 official `get.docker.com` script. Decline (`N`) if you prefer your
