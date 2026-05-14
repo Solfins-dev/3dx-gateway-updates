@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 3DX Gateway — Linux installer (ADR-015 Phase A initial setup).
+# 3DX Gateway — Linux installer (initial setup).
 #
 # Usage:
 #   sudo bash install.sh                       interactive, all defaults
@@ -119,8 +119,8 @@ Flags:
                               none:        plain HTTP (you provide reverse proxy)
   --license PATH           License file to copy in (OPTIONAL -- the gateway starts in
                            "awaiting license" mode if absent; drop the real one in later)
-  --telemetry on|off       ADR-015 §7.5 anonymous ping (default: on)
-  --helper                 Install Apply Update host helper (ADR-015 Phase 2(a))
+  --telemetry on|off       Anonymous hourly version ping (default: on)
+  --helper                 Install Apply Update host helper (one-click backend update)
   --install-docker yes|no  Auto-install Docker if missing (default: ask)
   --yes, -y                Skip "are you sure?" confirmations
   --dry-run                Show what would happen, don't make changes
@@ -563,7 +563,7 @@ EOF
 
 write_helper_overlay() {
     cat > "$INSTALL_DIR/docker-compose.helper.yml" <<EOF
-# ADR-015 Phase 2(a) helper bind-mount overlay.
+# Apply Update host helper bind-mount overlay.
 # Prereq: scripts/host/install-helper.sh ran successfully (this script does it
 # automatically when --helper is set).
 services:
