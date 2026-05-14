@@ -1,0 +1,27 @@
+[Unit]
+Description=3DX Gateway updater connection handler (ADR-015 Phase 2(a))
+Requires=3dx-gateway-helper.socket
+After=3dx-gateway-helper.socket
+
+[Service]
+# Per-connection process — systemd's socket-activated template service.
+# `@` in the unit name pairs with Accept=yes on the matching .socket.
+Type=oneshot
+ExecStart=/usr/local/bin/3dx-gateway-helper.sh
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+# CRITICAL: KillMode=process. APPLY forks a detached `setsid nohup bash`
+# background worker that runs `docker compose pull && up -d` — that can
+# take 30+ seconds. The default KillMode=control-group kills the entire
+# cgroup when the main process (the per-connection helper handler) exits,
+# which is within milliseconds. process mode kills ONLY the main process,
+# leaving the detached worker alive to finish its job. Without this, the
+# worker dies before docker compose pull even starts.
+KillMode=process
+# Helper itself must be able to run `docker compose` and write to
+# /var/lib/3dx-gateway-helper. Default User=root is fine; the background
+# apply job inherits the same privileges so it can pull + recreate
+# containers. If the host operator prefers running as a dedicated user
+# that's in the `docker` group, override here.
+TimeoutStartSec=15
