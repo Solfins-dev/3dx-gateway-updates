@@ -31,11 +31,12 @@
 #     ├── docker-compose.tls.yml       Caddy overlay (TLS mode auto|letsencrypt)
 #     ├── docker-compose.helper.yml    Apply-Update host helper overlay (optional)
 #     ├── Caddyfile                    reverse-proxy config (TLS modes only)
+#     ├── compose.env                  COMPOSE_FILES read by the systemd unit
 #     ├── .env                         POSTGRES_PASSWORD + ports + hostname
 #     ├── license.lic                  customer license (copied from --license path)
 #     └── data/                        bind-mounted app data
-#   /etc/systemd/system/3dx-gateway.service     auto-start on boot
-#   /usr/local/bin/3dx-gateway-helper.sh        if --helper (Phase 2(a))
+#   /etc/systemd/system/3dx-gateway.service     auto-start on boot (static)
+#   /usr/local/bin/3dx-gateway-helper.sh        if --helper
 #   /etc/systemd/system/3dx-gateway-helper.*    if --helper
 
 set -euo pipefail
@@ -590,14 +591,40 @@ EOF
     chmod 600 "$INSTALL_DIR/.env"
 }
 
-write_systemd_unit() {
+compute_compose_files() {
+    # Returns the customer's docker-compose flag list, e.g.
+    #   -f docker-compose.yml -f docker-compose.tls.yml -f docker-compose.helper.yml
     local compose_files="-f docker-compose.yml"
     [[ "$TLS_MODE" != "none" ]] && compose_files="$compose_files -f docker-compose.tls.yml"
     [[ $INSTALL_HELPER -eq 1 ]] && compose_files="$compose_files -f docker-compose.helper.yml"
+    echo "$compose_files"
+}
 
+write_compose_env() {
+    # systemd EnvironmentFile reader: KEY=VALUE per line. Values containing
+    # spaces MUST be wrapped in double quotes or systemd splits on the first
+    # space and silently drops the rest of the assignment (per
+    # reference_systemd_environment_quoting). Use double-quoted form here.
+    local compose_files
+    compose_files=$(compute_compose_files)
+    cat > "$INSTALL_DIR/compose.env" <<EOF
+# 3DX Gateway compose flags -- read by 3dx-gateway.service at start time.
+# Edit and run:  sudo systemctl restart 3dx-gateway
+# to apply a new overlay set (e.g. adding -f docker-compose.staging.yml).
+# Values with spaces MUST be double-quoted, or systemd splits them.
+COMPOSE_FILES="${compose_files}"
+EOF
+    chmod 644 "$INSTALL_DIR/compose.env"
+}
+
+write_systemd_unit() {
+    # Static unit -- customer-specific compose flags live in compose.env, not
+    # baked into ExecStart. Adding a new overlay (e.g. docker-compose.staging.yml)
+    # is then a one-line edit + `systemctl restart`; the unit itself never
+    # needs to change.
     cat > /etc/systemd/system/3dx-gateway.service <<EOF
 [Unit]
-Description=3DX Gateway — Solfins customer distribution
+Description=3DX Gateway -- Solfins customer distribution
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target
@@ -606,8 +633,9 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=${INSTALL_DIR}
-ExecStart=/usr/bin/docker compose ${compose_files} up -d
-ExecStop=/usr/bin/docker compose ${compose_files} down
+EnvironmentFile=${INSTALL_DIR}/compose.env
+ExecStart=/usr/bin/docker compose \${COMPOSE_FILES} up -d
+ExecStop=/usr/bin/docker compose \${COMPOSE_FILES} down
 TimeoutStartSec=300
 
 [Install]
@@ -665,6 +693,8 @@ install_helper_files() {
 
 install_systemd_service() {
     step "Installing systemd service"
+    write_compose_env
+    ok "compose.env (COMPOSE_FILES=$(compute_compose_files))"
     write_systemd_unit
     systemctl enable 3dx-gateway.service >/dev/null
     ok "3dx-gateway.service enabled at boot"
