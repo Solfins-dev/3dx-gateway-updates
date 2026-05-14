@@ -479,7 +479,11 @@ EOF
     cat >> "$INSTALL_DIR/docker-compose.yml" <<EOF
     volumes:
       - app_data:/app/data
-      - ./license.lic:/app/license.lic:ro
+      # license.lic is bind-mounted RW so the first-run wizard can write
+      # a customer-uploaded license back to disk. Backend only writes via
+      # signature-validated paths -- a bind-mount RW is not the security
+      # surface here, the signed-license requirement is.
+      - ./license.lic:/app/license.lic
     depends_on:
       postgres:
         condition: service_healthy
