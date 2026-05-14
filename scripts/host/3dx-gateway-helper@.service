@@ -1,5 +1,5 @@
 [Unit]
-Description=3DX Gateway updater connection handler (ADR-015 Phase 2(a))
+Description=3DX Gateway updater connection handler
 Requires=3dx-gateway-helper.socket
 After=3dx-gateway-helper.socket
 
