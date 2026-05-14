@@ -1,5 +1,5 @@
 [Unit]
-Description=3DX Gateway updater socket (ADR-015 Phase 2(a))
+Description=3DX Gateway updater socket
 PartOf=3dx-gateway-helper.service
 
 [Socket]
