@@ -15,7 +15,7 @@ services:
       # docs/wiki/reference/update-manifest.md). Public manifest — no token.
     volumes:
       - app_data:/app/data
-      - ./license.lic:/app/license.lic:ro
+      - ./license.lic:/app/license.lic
       # The host-side updater helper socket is NOT mounted here by default
       # because Docker auto-creates an empty directory at the source path when
       # the source doesn't exist, which would block a later helper install.
