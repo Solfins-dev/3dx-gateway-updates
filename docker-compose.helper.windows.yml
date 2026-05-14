@@ -1,0 +1,25 @@
+# Windows host overlay -- gives the gateway container the env vars + DNS
+# entry it needs to reach the Apply Update helper running on the host.
+#
+# Apply with:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.helper.windows.yml up -d
+#
+# Prerequisite: scripts/host/install-helper.ps1 ran successfully on the host
+# (installs a Scheduled Task that runs scripts/host/3dx-gateway-helper.ps1
+# as SYSTEM, listening on TCP 5171). install.ps1 wires both up automatically
+# when invoked with the helper step accepted.
+#
+# host.docker.internal is Docker Desktop's automatic bridge DNS -- it resolves
+# from inside the container to the host's bridge interface. host-gateway
+# alias makes this work on Docker Engine on Windows Server too.
+#
+# HELPER_TOKEN comes from .env which install.ps1 populates with the token
+# install-helper.ps1 generated. Container reads it as Updates:HelperToken
+# (the C# config binder maps double-underscore env vars to nested keys).
+services:
+  app:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      Updates__HelperEndpoint: "tcp://host.docker.internal:5171"
+      Updates__HelperToken: "${HELPER_TOKEN:?HELPER_TOKEN missing in .env -- did install.ps1 + install-helper.ps1 run?}"
