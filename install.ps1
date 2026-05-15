@@ -81,7 +81,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # Constants
-$INSTALLER_VERSION   = '1.0.0'
+$INSTALLER_VERSION   = '1.1.0'
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
 $GHCR_IMAGE          = 'ghcr.io/solfins-dev/3dx-gateway:latest'
 $DEFAULT_INSTALL_DIR = 'C:\ProgramData\3DX-Gateway'
@@ -100,6 +100,10 @@ $Script:EffTelemetry        = $null
 $Script:EffHelper           = $null
 $Script:EffHelperToken      = $null
 $Script:EffPostgresPassword = $null
+# Detected by Test-OS / Test-Docker; conservative defaults so downstream
+# checks behave sanely even if those steps are skipped (e.g. -DryRun edge).
+$Script:IsServer            = $false
+$Script:DockerFlavor        = 'unknown'
 
 #--- Output helpers ---------------------------------------------------------
 
@@ -141,27 +145,59 @@ function Test-OS {
     if ($build -lt 17763) {
         Throw-Stop "Unsupported OS: $caption (build $build). Need Windows Server 2019+ or Windows 10 21H2+."
     }
-    Write-Ok "$caption (build $build)"
+    # ProductType: 1 = Workstation, 2 = Domain Controller, 3 = Server.
+    # Server installs typically use Mirantis MCR or Docker Engine via WSL2,
+    # not Docker Desktop -- branch the install hints + autostart guidance
+    # accordingly.
+    $Script:IsServer = ($os.ProductType -ne 1)
+    $kind = if ($Script:IsServer) { 'Server' } else { 'Workstation' }
+    Write-Ok "$caption (build $build, $kind)"
 }
 
 function Test-Docker {
     Write-Step "Checking Docker"
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Write-Warn2 "Docker not installed."
-        Write-Substep "Install Docker Desktop from: https://www.docker.com/products/docker-desktop/"
+        if ($Script:IsServer) {
+            Write-Substep "On Windows Server, install one of:"
+            Write-Substep "  * Mirantis Container Runtime (MCR -- the Docker Engine fork that"
+            Write-Substep "    Microsoft + Mirantis maintain for Server). See"
+            Write-Substep "    https://docs.mirantis.com/mcr/"
+            Write-Substep "  * Docker Engine via WSL2 (works on Server 2022 with WSL2 enabled)"
+            Write-Substep "  * Docker Desktop -- supported on Server 2022+ but uncommon in prod"
+        } else {
+            Write-Substep "Install Docker Desktop from: https://www.docker.com/products/docker-desktop/"
+        }
         Write-Substep "(Auto-install on Windows is not supported by this installer -- the MSI is interactive.)"
-        Throw-Stop "Install Docker Desktop, ensure it's running, then re-run this script."
+        Throw-Stop "Install Docker, ensure the daemon is running, then re-run this script."
     }
     try {
         $null = docker info 2>&1
         if ($LASTEXITCODE -ne 0) {
-            Throw-Stop "Docker daemon is not running. Start Docker Desktop and re-run."
+            $hint = if ($Script:IsServer) { 'Start the Docker service (Get-Service docker | Start-Service)' } else { 'Start Docker Desktop' }
+            Throw-Stop "Docker daemon is not running. $hint and re-run."
         }
     } catch {
         Throw-Stop "Docker daemon is not running: $($_.Exception.Message)"
     }
+    # Detect engine flavour for downstream messaging. MCR / Docker Engine on
+    # Server reports ServerVersion like "20.10.9" without "+desktop"; Docker
+    # Desktop adds "+desktop.<n>" or runs OperatingSystem "Docker Desktop".
+    try {
+        $infoJson = (docker info --format '{{json .}}' 2>$null) | ConvertFrom-Json
+        $opsys = "$($infoJson.OperatingSystem)"
+        if ($opsys -like '*Docker Desktop*') {
+            $Script:DockerFlavor = 'desktop'
+        } elseif ($opsys -like '*Mirantis*') {
+            $Script:DockerFlavor = 'mirantis'
+        } else {
+            $Script:DockerFlavor = 'engine'
+        }
+    } catch {
+        $Script:DockerFlavor = 'unknown'
+    }
     $v = (docker version --format '{{.Server.Version}}' 2>$null)
-    Write-Ok "Docker $v (daemon running)"
+    Write-Ok "Docker $v ($Script:DockerFlavor, daemon running)"
 
     # docker compose v2 plugin
     try {
@@ -452,6 +488,10 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__BomExplorer: "Host=postgres;Port=5432;Database=bom_explorer;Username=bomapp;Password=`${POSTGRES_PASSWORD}"
       Telemetry__Enabled: "$telemBool"
+      # Email-OTP onboarding path -- off by default; flip to "true" once
+      # Solfins has wired up the M365 SMTP secrets on the Worker side.
+      # See INSTALL.md "Onboarding flow" for the customer-side switch.
+      Licensing__RequestEnabled: "`${LICENSING_REQUEST_ENABLED:-false}"
 $portsBlock
     volumes:
       - app_data:/app/data
@@ -552,6 +592,10 @@ HOSTNAME=$($Script:EffHostname)
 APP_PORT=$($Script:EffPort)
 TLS_MODE=$($Script:EffTls)
 TELEMETRY=$($Script:EffTelemetry)
+# Onboarding email-OTP path. Default false: customers can only install
+# via direct .lic upload (or pre-install --License). Flip to "true" after
+# Solfins admin wires up the M365 SMTP path, then `docker compose up -d`.
+LICENSING_REQUEST_ENABLED=false
 $helperLine
 "@
     $envPath = Join-Path $Script:EffInstallDir '.env'
@@ -755,9 +799,18 @@ function Show-Summary {
 
     Write-Host '  Auto-start:' -ForegroundColor Yellow
     Write-Host '    Containers use restart: unless-stopped so they survive Docker restarts.'
-    Write-Host '    For host-reboot auto-start, ensure Docker Desktop is set to autostart with'
-    Write-Host '    Windows (Docker Desktop settings -> General -> Start when you log in).'
-    Write-Host '    Or use Task Scheduler: trigger "At startup", action "docker compose -f' "$($Script:EffInstallDir)\docker-compose.yml" 'up -d".'
+    if ($Script:IsServer) {
+        Write-Host '    For host-reboot auto-start on Windows Server:'
+        Write-Host '      - Docker Engine / Mirantis MCR: the docker service is set to autostart'
+        Write-Host '        by the installer; verify with `Get-Service docker`. The compose stack'
+        Write-Host '        relaunches via restart: unless-stopped once the daemon is up.'
+        Write-Host "      - Belt-and-braces: register a Scheduled Task at boot running"
+        Write-Host "        ``docker compose -f $($Script:EffInstallDir)\docker-compose.yml up -d``"
+    } else {
+        Write-Host '    For host-reboot auto-start, ensure Docker Desktop is set to autostart with'
+        Write-Host '    Windows (Docker Desktop settings -> General -> Start when you log in).'
+        Write-Host "    Or use Task Scheduler: trigger ``At startup``, action ``docker compose -f $($Script:EffInstallDir)\docker-compose.yml up -d``."
+    }
     Write-Host ''
 
     if ($Script:EffHelper -eq 'on') {
@@ -770,10 +823,16 @@ function Show-Summary {
 
     if (-not $Script:EffLicense) {
         Write-Host '  License pending:' -ForegroundColor Yellow
-        Write-Host '    The gateway is running but will refuse logins until license.lic is'
-        Write-Host '    provided. When Solfins emails it, drop it in place and restart:'
-        Write-Host "      Copy-Item C:\path\to\license.lic $($Script:EffInstallDir)\license.lic"
-        Write-Host "      docker compose -f $($Script:EffInstallDir)\docker-compose.yml restart app"
+        Write-Host '    The gateway is running but logins are blocked until a license.lic is'
+        Write-Host '    installed. Two options when Solfins emails the file:'
+        Write-Host ''
+        Write-Host '      A) From your browser (no shell needed):'
+        Write-Host "         Open $(Get-BrowserUrl), the first-run wizard appears -- drag/drop"
+        Write-Host '         the .lic file or paste its contents. Activates instantly.'
+        Write-Host ''
+        Write-Host '      B) From this server (admin shell):'
+        Write-Host "         Copy-Item C:\path\to\license.lic $($Script:EffInstallDir)\license.lic"
+        Write-Host "         docker compose -f $($Script:EffInstallDir)\docker-compose.yml restart app"
         Write-Host ''
     }
     Write-Host '  Next steps:'
