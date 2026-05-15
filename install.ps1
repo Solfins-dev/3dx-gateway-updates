@@ -85,7 +85,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # Constants
-$INSTALLER_VERSION   = '1.3.0'
+$INSTALLER_VERSION   = '1.4.0'
 $DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
 $WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
@@ -288,15 +288,48 @@ function Install-DockerDesktop {
     }
     Write-Ok "Docker Desktop installed"
 
-    # Try to start the underlying service so the daemon comes up without
-    # requiring the customer to log out / log back in for the user-session
-    # auto-launch path. --always-run-service made the service auto-start
-    # capable; explicitly Start-Service handles the cold-after-install case.
-    try { Start-Service com.docker.service -ErrorAction Stop } catch {
-        Write-Warn2 "Could not start com.docker.service: $($_.Exception.Message). Daemon may need a fresh user session."
+    Start-DockerDaemon
+    Wait-DockerDaemon
+}
+
+function Start-DockerDaemon {
+    # On Windows Server, Docker Desktop's silent install completes but the
+    # daemon doesn't auto-spawn until the GUI is launched at least once
+    # (--always-run-service mostly applies after the first UI run + reboot).
+    # Three things together get the daemon up reliably without re-login:
+    #   1. Add current user to docker-users (required for named-pipe access)
+    #   2. Start com.docker.service (idempotent, no-op if already running)
+    #   3. Start-Process Docker Desktop.exe (kicks off daemon initialization)
+    #
+    # Net effect: customer doesn't need to log out / log back in.
+
+    Write-Step "Bringing Docker daemon online"
+
+    # 1. docker-users group enrollment
+    try {
+        $null = & net localgroup docker-users $env:USERNAME /add 2>&1
+        Write-Substep "$env:USERNAME added to docker-users (or already a member)"
+    } catch {
+        Write-Warn2 "net localgroup docker-users failed: $($_.Exception.Message)"
     }
 
-    Wait-DockerDaemon
+    # 2. Start the underlying service if registered
+    try {
+        Start-Service com.docker.service -ErrorAction Stop
+        Write-Substep "com.docker.service started"
+    } catch {
+        Write-Substep "com.docker.service: $($_.Exception.Message)"
+    }
+
+    # 3. Launch Docker Desktop UI in detached process. This step is what
+    # actually creates the npipe and spawns dockerd via WSL2.
+    $dockerDesktopExe = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
+    if (Test-Path $dockerDesktopExe) {
+        Start-Process -FilePath $dockerDesktopExe -ErrorAction SilentlyContinue
+        Write-Substep "Launched Docker Desktop UI (initializes the daemon, ~30-60 s)"
+    } else {
+        Write-Warn2 "Docker Desktop.exe not at the expected path; daemon may need manual launch."
+    }
 }
 
 function Update-DockerDesktop {
@@ -337,18 +370,45 @@ function Update-WSL {
 }
 
 function Wait-DockerDaemon {
-    Write-Step "Waiting for Docker daemon (up to 90 s)"
+    # Polls `docker info` until daemon responds (up to 3 min on cold installs
+    # where Docker Desktop's first-run setup is doing WSL2 distro provisioning).
+    # SilentlyContinue inside the loop suppresses the PS NativeCommandError
+    # noise that surfaces while the npipe doesn't exist yet -- the real
+    # signal is just $LASTEXITCODE == 0.
+    Write-Step "Waiting for Docker daemon (up to 180 s; cold-install can take a while)"
     $dockerExe = Join-Path $env:ProgramFiles "Docker\Docker\resources\bin\docker.exe"
     if (-not (Test-Path $dockerExe)) { $dockerExe = 'docker' }
-    for ($i = 0; $i -lt 30; $i++) {
-        $null = & $dockerExe info 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Ok "Docker daemon ready"
-            return
+    $prevPref = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    try {
+        for ($i = 0; $i -lt 60; $i++) {
+            & $dockerExe info *>$null 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Ok "Docker daemon ready"
+                return
+            }
+            Start-Sleep -Seconds 3
         }
-        Start-Sleep -Seconds 3
+    } finally {
+        $ErrorActionPreference = $prevPref
     }
-    Throw-Stop "Docker daemon didn't come up in 90 s. Log out + log back in, then re-run this script."
+    Write-Hr
+    Write-Host ""
+    Write-Host "  DOCKER DAEMON NOT RESPONDING" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  Docker Desktop is installed but the daemon hasn't come up after 3 min."
+    Write-Host "  Common fixes:"
+    Write-Host ""
+    Write-Host "    1. Open Docker Desktop from the Start menu (or system tray) and accept"
+    Write-Host "       any first-run prompts. Wait for the tray icon to stop animating."
+    Write-Host ""
+    Write-Host "    2. If you're not in the docker-users group:"
+    Write-Host "         net localgroup docker-users `$env:USERNAME /add"
+    Write-Host "       Then SIGN OUT + sign back in (group membership applies on new token)."
+    Write-Host ""
+    Write-Host "    3. Re-run install.bat once Docker Desktop's tray icon settles."
+    Write-Host ""
+    Throw-Stop "Docker daemon didn't come up in 180 s."
 }
 
 function Test-Docker {
