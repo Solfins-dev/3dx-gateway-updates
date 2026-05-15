@@ -72,9 +72,34 @@ sudo bash install.sh
 
 #### Windows Server
 
-Install Docker Desktop first if you haven't already
-(https://www.docker.com/products/docker-desktop/), launch it once so
-the daemon is running, then in an **elevated PowerShell** run:
+You don't need Docker pre-installed -- the installer detects it's
+missing and offers to install Docker Desktop automatically (~600 MB
+download, may need a reboot for WSL2 enablement on first run).
+
+Pick one of three ways to launch the installer:
+
+**A) Double-click `install.bat` (easiest, no shell needed)**
+
+Download the [`install.bat`](https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/install.bat)
+file (~1 KB), right-click -> **Run as administrator** (or just
+double-click and accept the UAC prompt). The .bat self-elevates,
+downloads the latest `install.ps1` from this same repo, and runs it.
+Window stays open at the end so you can read the summary.
+
+**B) PowerShell one-liner**
+
+Open an **elevated PowerShell** and paste:
+
+```pwsh
+Set-ExecutionPolicy Bypass -Scope Process -Force; `
+  irm https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/install.ps1 `
+  -OutFile $env:TEMP\install.ps1; & $env:TEMP\install.ps1
+```
+
+**C) Manual download + run (advanced)**
+
+For inspecting the script before execution, or behind a firewall that
+needs proxy config:
 
 ```pwsh
 Invoke-WebRequest -UseBasicParsing `
@@ -83,11 +108,13 @@ Invoke-WebRequest -UseBasicParsing `
 & $env:TEMP\install.ps1
 ```
 
-The installer auto-elevates if you forgot to launch from an Admin
-shell. It writes files under `C:\ProgramData\3DX-Gateway` by default;
-override with `-InstallDir D:\3dx-gateway` if you prefer a different
-drive. Container auto-start across host reboots relies on Docker
-Desktop's "Start when you log in" setting (Settings -> General).
+All three flow into the same install.ps1 (interactive prompts, ~5 min
+once Docker is up). The installer writes files under
+`C:\ProgramData\3DX-Gateway` by default; override with
+`-InstallDir D:\3dx-gateway` (one-liner: append after the script
+invocation; .bat: edit the path inside or run install.ps1 directly).
+Container auto-start across host reboots relies on Docker Desktop's
+"Start when you log in" setting (Settings -> General).
 
 The Apply Update host helper is **available on Windows** -- the
 installer offers an optional install step that registers a Scheduled
