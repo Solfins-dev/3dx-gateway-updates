@@ -695,6 +695,12 @@ write_systemd_unit() {
     # is then a one-line edit + `systemctl restart`; the unit itself never
     # needs to change. Unit name is namespaced by INSTALL_SLUG so multiple
     # parallel installs don't collide.
+    #
+    # Note on $COMPOSE_FILES (no braces): systemd ${VAR} substitutes as a SINGLE
+    # argument (no word splitting), while $VAR splits on whitespace. We need
+    # the split form so each -f docker-compose.* becomes its own argv entry to
+    # docker compose. Using ${VAR} resulted in compose seeing one giant
+    # filename "-f docker-compose.yml -f ...".
     cat > "/etc/systemd/system/${INSTALL_SLUG}.service" <<EOF
 [Unit]
 Description=3DX Gateway (${INSTALL_SLUG}) -- Solfins customer distribution
@@ -707,8 +713,8 @@ Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=${INSTALL_DIR}
 EnvironmentFile=${INSTALL_DIR}/compose.env
-ExecStart=/usr/bin/docker compose -p ${INSTALL_SLUG} \${COMPOSE_FILES} up -d
-ExecStop=/usr/bin/docker compose -p ${INSTALL_SLUG} \${COMPOSE_FILES} down
+ExecStart=/usr/bin/docker compose -p ${INSTALL_SLUG} \$COMPOSE_FILES up -d
+ExecStop=/usr/bin/docker compose -p ${INSTALL_SLUG} \$COMPOSE_FILES down
 TimeoutStartSec=300
 
 [Install]
