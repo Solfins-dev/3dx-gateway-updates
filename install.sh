@@ -654,21 +654,28 @@ ${HOSTNAME_FQDN} {
 }
 EOF
     else
-        # tls internal — local CA
+        # tls internal -- local CA
         cat > "$INSTALL_DIR/Caddyfile" <<EOF
+{
+    # Caddy's auto-HTTPS adds an automatic HTTP->HTTPS redirect handler for
+    # any hostname that has an HTTPS site block. That handler runs in addition
+    # to our explicit \`http://\${HOSTNAME_FQDN}\` block below, and the auto-
+    # redirect WINS hostname matching for /caddy-ca.crt -- workstations follow
+    # 308 to HTTPS but don't trust the cert yet (that's what they're trying to
+    # install) -> 0-byte download -> Setup.bat aborts.
+    # Disabling the auto-redirect leaves us free to handle port 80 ourselves.
+    # Cert management itself is unaffected.
+    auto_https disable_redirects
+}
+
 ${HOSTNAME_FQDN} {
     tls internal
     reverse_proxy app:5000
 }
 
-# Expose the local CA so workstations can install it once.
-# IMPORTANT: must be `http://\${HOSTNAME_FQDN}`, NOT a bare `:80`. Caddy's
-# auto-HTTPS adds an HTTPS-redirect handler for the dev01 hostname on port
-# 80 because the main site block (above) is HTTPS-only. That handler is
-# hostname-specific, so it WINS over a hostname-less `:80 {}` block --
-# every request to /caddy-ca.crt would then 308-redirect to HTTPS instead
-# of serving the cert. Explicit `http://\${HOSTNAME_FQDN}` opts out of
-# auto-HTTPS for that exact name+port and lets our handle block fire.
+# Expose the local CA over HTTP so first-time workstations can fetch it.
+# Use \`http://\${HOSTNAME_FQDN}\` (not bare \`:80\`) so Caddy treats this
+# as an explicit HTTP-only site for the same hostname.
 http://${HOSTNAME_FQDN} {
     handle /caddy-ca.crt {
         root * /data/caddy/pki/authorities/local
