@@ -676,13 +676,24 @@ ${HOSTNAME_FQDN} {
 # Expose the local CA over HTTP so first-time workstations can fetch it.
 # Use \`http://\${HOSTNAME_FQDN}\` (not bare \`:80\`) so Caddy treats this
 # as an explicit HTTP-only site for the same hostname.
+#
+# IMPORTANT: redir MUST live inside a catch-all \`handle {}\` block (no
+# matcher), NOT at the site-block top level. Caddy's directive ordering
+# puts a top-level \`redir /*\` BEFORE \`handle /caddy-ca.crt\` in the
+# generated route list, so the redir would catch /caddy-ca.crt first
+# and never let the handle block fire (verified via \`caddy adapt\` JSON).
+# Two sibling \`handle\` blocks are mutually exclusive: the more specific
+# /caddy-ca.crt match wins for that path; the empty-matcher catch-all
+# handles everything else.
 http://${HOSTNAME_FQDN} {
     handle /caddy-ca.crt {
         root * /data/caddy/pki/authorities/local
         rewrite * /root.crt
         file_server
     }
-    redir /* https://${HOSTNAME_FQDN}{uri}
+    handle {
+        redir https://${HOSTNAME_FQDN}{uri}
+    }
 }
 EOF
     fi
