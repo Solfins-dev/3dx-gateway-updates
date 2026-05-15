@@ -19,8 +19,12 @@ Differences vs install.sh:
     -d` on demand. The gateway container reaches it via host.docker.internal
     with a bearer token. Equivalent to the Linux systemd helper.
   - Port check via Get-NetTCPConnection instead of ss.
-  - Docker auto-install is unsupported; if Docker is missing we print a
-    pointer to docker.com/products/docker-desktop and exit.
+  - Docker auto-install IS supported (v1.2.0+) on Win10/11 + Server 2022+:
+    if `docker` is missing the script offers to download Docker Desktop
+    (~600 MB), enable WSL2 + VM Platform features (reboot required first
+    time), run the silent install (--quiet --accept-license --backend=wsl-2
+    --always-run-service), and wait for the daemon. Server 2019 and below
+    fall back to the manual hint (Mirantis MCR / Docker Engine via WSL2).
   - Admin-elevation via self-restart with -Verb RunAs.
 
 .PARAMETER InstallDir
@@ -81,7 +85,9 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # Constants
-$INSTALLER_VERSION   = '1.1.0'
+$INSTALLER_VERSION   = '1.2.0'
+$DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
+$WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
 $GHCR_IMAGE          = 'ghcr.io/solfins-dev/3dx-gateway:latest'
 $DEFAULT_INSTALL_DIR = 'C:\ProgramData\3DX-Gateway'
@@ -154,22 +160,157 @@ function Test-OS {
     Write-Ok "$caption (build $build, $kind)"
 }
 
+function Test-CanAutoInstallDocker {
+    # Docker Desktop's silent installer supports Win10/11 (build 19044+) and
+    # Server 2022+. Server 2019 and below: no go (Docker Desktop unsupported).
+    if (-not $Script:IsServer) { return $true }
+    $build = [int](Get-CimInstance Win32_OperatingSystem).BuildNumber
+    return ($build -ge $WIN_BUILD_SERVER_2022)
+}
+
+function Show-DockerManualHints {
+    if ($Script:IsServer) {
+        Write-Substep "On Windows Server, install one of:"
+        Write-Substep "  * Mirantis Container Runtime (MCR -- Docker Engine fork for Server)."
+        Write-Substep "    See https://docs.mirantis.com/mcr/"
+        Write-Substep "  * Docker Engine via WSL2 (works on Server 2022 with WSL2 enabled)"
+        Write-Substep "  * Docker Desktop -- supported on Server 2022+ but uncommon in prod"
+    } else {
+        Write-Substep "Install Docker Desktop from: https://www.docker.com/products/docker-desktop/"
+    }
+}
+
+function Test-WSL2Ready {
+    # Both features must be Enabled AND `wsl --status` must succeed (means
+    # WSL2 kernel is installed + default version is 2).
+    try {
+        $wsl = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -ErrorAction Stop
+        $vmp = Get-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -ErrorAction Stop
+    } catch {
+        return $false
+    }
+    if ($wsl.State -ne 'Enabled' -or $vmp.State -ne 'Enabled') { return $false }
+    $null = wsl --status 2>&1
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Install-WSL2 {
+    Write-Step "Enabling WSL2 + Virtual Machine Platform"
+    Write-Substep "This typically takes 1-3 min and REQUIRES A REBOOT before Docker can run."
+
+    # Modern Windows (build 22000+) supports `wsl --install --no-distribution`
+    # which enables both features + sets WSL2 as default in one shot. Older
+    # builds need the optional-feature path.
+    $useWslCli = $false
+    try {
+        $help = wsl --help 2>&1 | Out-String
+        if ($help -match '--no-distribution') { $useWslCli = $true }
+    } catch { }
+
+    if ($useWslCli) {
+        & wsl --install --no-distribution
+        if ($LASTEXITCODE -ne 0) {
+            Throw-Stop "wsl --install failed (exit $LASTEXITCODE). Run it manually + reboot, then re-run this installer."
+        }
+    } else {
+        # Legacy path: enable each feature separately.
+        Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -All -NoRestart | Out-Null
+        Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All -NoRestart | Out-Null
+    }
+    Write-Ok "WSL2 features enabled (reboot pending)"
+    Write-Hr
+    Write-Host ""
+    Write-Host "  REBOOT REQUIRED" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  WSL2 features were just enabled but the kernel + Docker Desktop won't"
+    Write-Host "  run until you reboot. After the reboot:"
+    Write-Host ""
+    Write-Host "    1. Open an elevated PowerShell"
+    Write-Host "    2. Re-run the same install command -- the installer will detect that"
+    Write-Host "       WSL2 is now ready and continue with Docker Desktop install."
+    Write-Host ""
+    Throw-Stop "Reboot now (Restart-Computer) and re-run this script."
+}
+
+function Install-DockerDesktop {
+    if (-not (Test-WSL2Ready)) {
+        Install-WSL2  # throws + exits with reboot message
+    }
+    Write-Ok "WSL2 ready"
+
+    $dst = Join-Path $env:TEMP "DockerDesktopInstaller.exe"
+
+    Write-Step "Downloading Docker Desktop installer (~600 MB)"
+    if (Test-Path $dst) { Remove-Item -Force $dst }
+    # IWR shows progress automatically. UseBasicParsing avoids the IE engine
+    # init that fails on freshly-installed Server cores.
+    Invoke-WebRequest -Uri $DOCKER_INSTALLER_URL -OutFile $dst -UseBasicParsing
+    $sizeMb = [math]::Round((Get-Item $dst).Length / 1MB, 1)
+    Write-Ok "Downloaded $sizeMb MB to $dst"
+
+    Write-Step "Installing Docker Desktop (silent, ~3-5 min, no UI)"
+    $installArgs = @(
+        'install',
+        '--quiet',
+        '--accept-license',
+        '--backend=wsl-2',
+        '--always-run-service'
+    )
+    $proc = Start-Process -FilePath $dst -ArgumentList $installArgs -Wait -PassThru -NoNewWindow
+    if ($proc.ExitCode -ne 0) {
+        Throw-Stop "Docker Desktop installer exited with code $($proc.ExitCode). Run the installer manually for diagnostics: $dst"
+    }
+    Write-Ok "Docker Desktop installed"
+
+    # Try to start the underlying service so the daemon comes up without
+    # requiring the customer to log out / log back in for the user-session
+    # auto-launch path. --always-run-service made the service auto-start
+    # capable; explicitly Start-Service handles the cold-after-install case.
+    try { Start-Service com.docker.service -ErrorAction Stop } catch {
+        Write-Warn2 "Could not start com.docker.service: $($_.Exception.Message). Daemon may need a fresh user session."
+    }
+
+    Wait-DockerDaemon
+}
+
+function Wait-DockerDaemon {
+    Write-Step "Waiting for Docker daemon (up to 90 s)"
+    $dockerExe = Join-Path $env:ProgramFiles "Docker\Docker\resources\bin\docker.exe"
+    if (-not (Test-Path $dockerExe)) { $dockerExe = 'docker' }
+    for ($i = 0; $i -lt 30; $i++) {
+        $null = & $dockerExe info 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Ok "Docker daemon ready"
+            return
+        }
+        Start-Sleep -Seconds 3
+    }
+    Throw-Stop "Docker daemon didn't come up in 90 s. Log out + log back in, then re-run this script."
+}
+
 function Test-Docker {
     Write-Step "Checking Docker"
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Write-Warn2 "Docker not installed."
-        if ($Script:IsServer) {
-            Write-Substep "On Windows Server, install one of:"
-            Write-Substep "  * Mirantis Container Runtime (MCR -- the Docker Engine fork that"
-            Write-Substep "    Microsoft + Mirantis maintain for Server). See"
-            Write-Substep "    https://docs.mirantis.com/mcr/"
-            Write-Substep "  * Docker Engine via WSL2 (works on Server 2022 with WSL2 enabled)"
-            Write-Substep "  * Docker Desktop -- supported on Server 2022+ but uncommon in prod"
+        if (Test-CanAutoInstallDocker) {
+            $yn = Read-YesNo "Install Docker Desktop now? (~600 MB download, ~5 min, may need reboot for WSL2)" "y"
+            if ($yn -eq 'y') {
+                Install-DockerDesktop
+                # Refresh the PATH for THIS session so we can call docker
+                # without the customer having to re-launch PS.
+                $env:PATH += ";$env:ProgramFiles\Docker\Docker\resources\bin"
+                if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+                    Throw-Stop "docker.exe didn't land on PATH after install. Open a fresh elevated PowerShell and re-run this script."
+                }
+            } else {
+                Show-DockerManualHints
+                Throw-Stop "Install Docker, ensure the daemon is running, then re-run this script."
+            }
         } else {
-            Write-Substep "Install Docker Desktop from: https://www.docker.com/products/docker-desktop/"
+            # Server 2019 / older: no auto-install path, point at manual options.
+            Show-DockerManualHints
+            Throw-Stop "Install Docker, ensure the daemon is running, then re-run this script."
         }
-        Write-Substep "(Auto-install on Windows is not supported by this installer -- the MSI is interactive.)"
-        Throw-Stop "Install Docker, ensure the daemon is running, then re-run this script."
     }
     try {
         $null = docker info 2>&1
