@@ -582,6 +582,10 @@ EOF
       # signature-validated paths -- a bind-mount RW is not the security
       # surface here, the signed-license requirement is.
       - ./license.lic:/app/license.lic
+      # CadBridge ZIP is fetched once at install time + refreshed by Apply
+      # Update (Settings -> Updates -> CadBridge). Backend serves it via
+      # /api/downloads/CadBridge-Setup.zip with server-url.txt injection.
+      - ./installers/CadBridge-Setup.zip:/app/installers/CadBridge-Setup.zip:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -788,6 +792,46 @@ write_files() {
         ok "license.lic placeholder (empty -- copy the real one from Solfins later)"
     fi
     mkdir -p "$INSTALL_DIR/data"
+    fetch_cadbridge_zip
+}
+
+fetch_cadbridge_zip() {
+    # CadBridge agent ZIP is intentionally NOT baked into the gateway image
+    # (would inflate the image by ~30 MB on every release for a workstation
+    # artifact most server admins don't need to inspect). install.sh fetches
+    # the latest version once at install time using the public manifest's
+    # cadBridge.downloadUrl. After install, customers refresh via Apply
+    # Update from the web UI.
+    step "Fetching CadBridge installer ZIP"
+    mkdir -p "$INSTALL_DIR/installers"
+
+    local manifest cb_url
+    manifest=$(curl -fsSL --max-time 10 \
+        "${PUBLIC_REPO_BASE}/latest.json" 2>/dev/null) || {
+        warn "Could not fetch manifest from $PUBLIC_REPO_BASE/latest.json"
+        substep "Skipping CadBridge ZIP download. Workstation 'Download CadBridge' button"
+        substep "will return 'CadBridge installer not built yet' until you drop the ZIP at"
+        substep "${INSTALL_DIR}/installers/CadBridge-Setup.zip + sudo systemctl restart ${INSTALL_SLUG}."
+        : > "$INSTALL_DIR/installers/CadBridge-Setup.zip"  # placeholder so bind-mount doesn't fail
+        return 0
+    }
+
+    cb_url=$(echo "$manifest" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cadBridge',{}).get('downloadUrl',''))" 2>/dev/null)
+    if [[ -z "$cb_url" ]]; then
+        warn "Manifest has no cadBridge.downloadUrl; skipping CadBridge ZIP."
+        : > "$INSTALL_DIR/installers/CadBridge-Setup.zip"
+        return 0
+    fi
+
+    substep "Downloading $cb_url"
+    if curl -fsSL --max-time 60 -o "$INSTALL_DIR/installers/CadBridge-Setup.zip" "$cb_url"; then
+        local sz
+        sz=$(stat -c%s "$INSTALL_DIR/installers/CadBridge-Setup.zip" 2>/dev/null || echo 0)
+        ok "CadBridge ZIP downloaded ($((sz / 1024)) KB)"
+    else
+        warn "CadBridge ZIP download failed; will need manual scp."
+        : > "$INSTALL_DIR/installers/CadBridge-Setup.zip"
+    fi
 }
 
 install_helper_files() {
