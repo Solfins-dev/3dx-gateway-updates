@@ -85,7 +85,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # Constants
-$INSTALLER_VERSION   = '1.2.0'
+$INSTALLER_VERSION   = '1.3.0'
 $DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
 $WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
@@ -244,14 +244,10 @@ function Install-WSL2 {
     Throw-Stop "Reboot now (Restart-Computer) and re-run this script."
 }
 
-function Install-DockerDesktop {
-    if (-not (Test-WSL2Ready)) {
-        Install-WSL2  # throws + exits with reboot message
-    }
-    Write-Ok "WSL2 ready"
-
+function Get-DockerDesktopInstaller {
+    # Downloads (or re-uses cached) Docker Desktop Installer.exe to %TEMP%.
+    # Returns the local path. Same logic for both fresh-install + update.
     $dst = Join-Path $env:TEMP "DockerDesktopInstaller.exe"
-
     Write-Step "Downloading Docker Desktop installer (~600 MB)"
     if (Test-Path $dst) { Remove-Item -Force $dst }
     # IWR shows progress automatically. UseBasicParsing avoids the IE engine
@@ -259,8 +255,14 @@ function Install-DockerDesktop {
     Invoke-WebRequest -Uri $DOCKER_INSTALLER_URL -OutFile $dst -UseBasicParsing
     $sizeMb = [math]::Round((Get-Item $dst).Length / 1MB, 1)
     Write-Ok "Downloaded $sizeMb MB to $dst"
+    return $dst
+}
 
-    Write-Step "Installing Docker Desktop (silent, ~3-5 min, no UI)"
+function Invoke-DockerDesktopInstaller {
+    # Runs the silent installer. Same flag set works for fresh install and
+    # in-place upgrade -- Docker Desktop's installer detects existing version.
+    param([string]$InstallerPath, [string]$Action = 'install')
+    Write-Step "$Action Docker Desktop (silent, ~3-5 min, no UI)"
     $installArgs = @(
         'install',
         '--quiet',
@@ -268,9 +270,21 @@ function Install-DockerDesktop {
         '--backend=wsl-2',
         '--always-run-service'
     )
-    $proc = Start-Process -FilePath $dst -ArgumentList $installArgs -Wait -PassThru -NoNewWindow
-    if ($proc.ExitCode -ne 0) {
-        Throw-Stop "Docker Desktop installer exited with code $($proc.ExitCode). Run the installer manually for diagnostics: $dst"
+    $proc = Start-Process -FilePath $InstallerPath -ArgumentList $installArgs -Wait -PassThru -NoNewWindow
+    return $proc.ExitCode
+}
+
+function Install-DockerDesktop {
+    if (-not (Test-WSL2Ready)) {
+        Install-WSL2  # throws + exits with reboot message
+    }
+    Write-Ok "WSL2 ready"
+    Update-WSL  # idempotent; pulls the latest WSL2 kernel before Docker runs
+
+    $dst = Get-DockerDesktopInstaller
+    $exit = Invoke-DockerDesktopInstaller -InstallerPath $dst -Action 'Installing'
+    if ($exit -ne 0) {
+        Throw-Stop "Docker Desktop installer exited with code $exit. Run the installer manually for diagnostics: $dst"
     }
     Write-Ok "Docker Desktop installed"
 
@@ -283,6 +297,43 @@ function Install-DockerDesktop {
     }
 
     Wait-DockerDaemon
+}
+
+function Update-DockerDesktop {
+    # In-place upgrade: re-runs the silent installer. Docker Desktop's
+    # installer detects existing version and upgrades if newer is shipped.
+    $dst = Get-DockerDesktopInstaller
+    $exit = Invoke-DockerDesktopInstaller -InstallerPath $dst -Action 'Updating'
+    if ($exit -ne 0) {
+        Write-Warn2 "Docker Desktop installer returned $exit; existing Docker may still work. Inspect 'docker version'."
+        return
+    }
+    Write-Ok "Docker Desktop updated"
+    # Service restart for the new binaries to take effect.
+    try { Restart-Service com.docker.service -ErrorAction Stop } catch {
+        Write-Warn2 "Could not restart com.docker.service: $($_.Exception.Message). Restart Docker Desktop manually."
+    }
+    Wait-DockerDaemon
+}
+
+function Update-WSL {
+    # Idempotent. Pulls latest WSL2 kernel from Microsoft Update / web. Safe
+    # to run on every install.ps1 invocation -- no kernel update needed = no
+    # change. --web-download path avoids the Microsoft Store dependency
+    # which Server SKUs sometimes lack.
+    Write-Step "Updating WSL kernel (`wsl --update`)"
+    & wsl --update --web-download 2>&1 | Out-Host
+    if ($LASTEXITCODE -eq 0) {
+        Write-Ok "WSL kernel up to date"
+    } else {
+        # --web-download may not exist on very old wsl.exe; retry without it.
+        & wsl --update 2>&1 | Out-Host
+        if ($LASTEXITCODE -eq 0) {
+            Write-Ok "WSL kernel up to date"
+        } else {
+            Write-Warn2 "wsl --update returned $LASTEXITCODE; kept current kernel. Run 'wsl --version' to inspect."
+        }
+    }
 }
 
 function Wait-DockerDaemon {
@@ -351,6 +402,24 @@ function Test-Docker {
     }
     $v = (docker version --format '{{.Server.Version}}' 2>$null)
     Write-Ok "Docker $v ($Script:DockerFlavor, daemon running)"
+
+    # Auto-update path for already-installed Docker. WSL kernel update is
+    # silent + idempotent; Docker Desktop in-place upgrade is opt-in (default
+    # N) because it's a 600 MB download we don't want to repeat on every
+    # install.ps1 re-run.
+    if (Test-WSL2Ready) {
+        Update-WSL
+    }
+    if ($Script:DockerFlavor -eq 'desktop') {
+        $yn = Read-YesNo "Update Docker Desktop to latest? (~600 MB download, ~5 min)" "n"
+        if ($yn -eq 'y') {
+            Update-DockerDesktop
+            $v = (docker version --format '{{.Server.Version}}' 2>$null)
+            Write-Ok "Docker now $v"
+        }
+    } elseif ($Script:DockerFlavor -in 'mirantis','engine') {
+        Write-Substep "Update path for $($Script:DockerFlavor) is engine-managed; skipping auto-update."
+    }
 
     # docker compose v2 plugin
     try {
