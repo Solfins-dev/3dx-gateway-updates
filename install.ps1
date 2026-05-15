@@ -85,7 +85,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # Constants
-$INSTALLER_VERSION   = '1.4.0'
+$INSTALLER_VERSION   = '1.5.0'
 $DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
 $WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
@@ -166,6 +166,46 @@ function Test-CanAutoInstallDocker {
     if (-not $Script:IsServer) { return $true }
     $build = [int](Get-CimInstance Win32_OperatingSystem).BuildNumber
     return ($build -ge $WIN_BUILD_SERVER_2022)
+}
+
+function Test-NestedVirtIfVM {
+    # Pre-flight warning for VM hosts. WSL2 (which Docker Desktop's Linux
+    # backend depends on) needs an inner VM, which needs nested virtualization
+    # extensions exposed by the OUTER hypervisor. Most hosts default to OFF
+    # because nested virt has perf cost.
+    #
+    # We can't fully verify nested virt without trying to start the inner VM
+    # -- but if we detect we're inside a VM, warn early so the customer can
+    # check their hypervisor config BEFORE downloading 600 MB of installer.
+    $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+    if (-not $cs) { return }
+    $manufacturer = "$($cs.Manufacturer)"
+    $model = "$($cs.Model)"
+    $isVm = $false
+    $hostHint = ''
+    if ($manufacturer -like '*VMware*') {
+        $isVm = $true
+        $hostHint = "VMware vSphere/ESXi: VM Settings -> CPU -> check 'Expose hardware-assisted virtualization to the guest OS' (VM must be powered off)."
+    } elseif ($manufacturer -like '*Microsoft*' -and $model -like '*Virtual*') {
+        $isVm = $true
+        $hostHint = "Hyper-V host: 'Set-VMProcessor -VMName <name> -ExposeVirtualizationExtensions `$true' (VM must be off)."
+    } elseif ($manufacturer -like '*Xen*') {
+        $isVm = $true
+        $hostHint = "Xen / AWS EC2: nested virt only on .metal instance types."
+    } elseif ($manufacturer -like '*QEMU*' -or $manufacturer -like '*innotek*') {
+        $isVm = $true
+        $hostHint = "QEMU/KVM: 'qm set <vmid> --cpu host' on Proxmox; check VBox System -> Acceleration."
+    } elseif ($manufacturer -like '*Google*') {
+        $isVm = $true
+        $hostHint = "GCP: recreate VM with --enable-nested-virtualization (Haswell+ N2/C2/T2D only)."
+    }
+    if ($isVm) {
+        Write-Substep "Detected VM: $manufacturer / $model"
+        Write-Warn2 "Docker Desktop needs WSL2, which needs *nested* virtualization on the host hypervisor."
+        Write-Substep "  $hostHint"
+        Write-Substep "If you haven't enabled this, Docker Desktop will install but its Linux engine"
+        Write-Substep "won't start (you'll see 'Virtualization support not detected' after a 600 MB install)."
+    }
 }
 
 function Show-DockerManualHints {
@@ -416,6 +456,7 @@ function Test-Docker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Write-Warn2 "Docker not installed."
         if (Test-CanAutoInstallDocker) {
+            Test-NestedVirtIfVM   # warns up-front if running in a VM that may lack nested virt
             $yn = Read-YesNo "Install Docker Desktop now? (~600 MB download, ~5 min, may need reboot for WSL2)" "y"
             if ($yn -eq 'y') {
                 Install-DockerDesktop
