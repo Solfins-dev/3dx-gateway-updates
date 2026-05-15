@@ -182,7 +182,10 @@ function Show-DockerManualHints {
 
 function Test-WSL2Ready {
     # Both features must be Enabled AND `wsl --status` must succeed (means
-    # WSL2 kernel is installed + default version is 2).
+    # WSL2 kernel is installed + default version is 2). After a reboot, the
+    # LxssManager service can take 30-60 s to initialise -- if `wsl --status`
+    # fires too early it returns non-zero with no useful output, which used
+    # to push us into a reboot loop. Retry up to 6 x 5 s before giving up.
     try {
         $wsl = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -ErrorAction Stop
         $vmp = Get-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -ErrorAction Stop
@@ -190,8 +193,17 @@ function Test-WSL2Ready {
         return $false
     }
     if ($wsl.State -ne 'Enabled' -or $vmp.State -ne 'Enabled') { return $false }
-    $null = wsl --status 2>&1
-    return ($LASTEXITCODE -eq 0)
+
+    for ($i = 0; $i -lt 6; $i++) {
+        $null = wsl --status 2>&1
+        if ($LASTEXITCODE -eq 0) { return $true }
+        if ($i -eq 0) {
+            Write-Substep "wsl --status not responding yet (post-reboot init can take ~30 s); waiting..."
+        }
+        Start-Sleep -Seconds 5
+    }
+    Write-Warn2 "wsl --status kept failing after 30 s. Run 'wsl --status' manually to see why."
+    return $false
 }
 
 function Install-WSL2 {
