@@ -662,7 +662,14 @@ ${HOSTNAME_FQDN} {
 }
 
 # Expose the local CA so workstations can install it once.
-:80 {
+# IMPORTANT: must be `http://\${HOSTNAME_FQDN}`, NOT a bare `:80`. Caddy's
+# auto-HTTPS adds an HTTPS-redirect handler for the dev01 hostname on port
+# 80 because the main site block (above) is HTTPS-only. That handler is
+# hostname-specific, so it WINS over a hostname-less `:80 {}` block --
+# every request to /caddy-ca.crt would then 308-redirect to HTTPS instead
+# of serving the cert. Explicit `http://\${HOSTNAME_FQDN}` opts out of
+# auto-HTTPS for that exact name+port and lets our handle block fire.
+http://${HOSTNAME_FQDN} {
     handle /caddy-ca.crt {
         root * /data/caddy/pki/authorities/local
         rewrite * /root.crt
