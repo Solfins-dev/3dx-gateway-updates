@@ -80,8 +80,12 @@ Pick one of three ways to launch the installer:
 
 **A) Double-click `install.bat` (easiest, no shell needed)**
 
-Download the [`install.bat`](https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/install.bat)
-file (~1 KB), right-click -> **Run as administrator** (or just
+Download from the **Installer release** (browsers force a download
+instead of displaying the script as text):
+
+> https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/installer/install.bat
+
+Right-click the downloaded file -> **Run as administrator** (or just
 double-click and accept the UAC prompt). The .bat self-elevates,
 downloads the latest `install.ps1` from this same repo, and runs it.
 Window stays open at the end so you can read the summary.
