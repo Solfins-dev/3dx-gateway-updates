@@ -827,6 +827,17 @@ install_systemd_service() {
 start_stack() {
     step "Pulling images + starting containers (~30-60 s)"
     cd "$INSTALL_DIR"
+    # Explicit pull before first up: docker compose up -d uses the cached
+    # image if one exists locally (no --pull always default), so a host that
+    # had an older :latest cached from a prior install would silently keep
+    # running the stale version. We want every install to land on the latest
+    # GHCR :latest. Day-to-day systemd restarts (after this initial install)
+    # use cache as intended.
+    local compose_files
+    compose_files=$(compute_compose_files)
+    # shellcheck disable=SC2086
+    docker compose -p "$INSTALL_SLUG" $compose_files pull --quiet || \
+        warn "Image pull returned non-zero -- continuing with whatever is cached locally."
     systemctl start "${INSTALL_SLUG}.service"
     ok "Stack started"
 
