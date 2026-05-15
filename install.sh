@@ -562,6 +562,12 @@ services:
       # Email-OTP onboarding path -- off by default; flip via .env once
       # Solfins has wired up the M365 SMTP secrets on the Worker side.
       Licensing__RequestEnabled: "\${LICENSING_REQUEST_ENABLED:-false}"
+      # Path to the CadBridge ZIP inside the container (matches the bind
+      # mount below). Backend's /api/downloads/CadBridge-Setup.zip endpoint
+      # uses this; without it, the dev fallback (/cadbridge/publish/...)
+      # doesn't exist in production images and the endpoint returns
+      # "CadBridge installer not built yet".
+      CadBridgeInstaller__Path: /app/installers/CadBridge-Setup.zip
 EOF
 
     # When NOT using a TLS overlay, expose the port directly on the host.
