@@ -41,7 +41,7 @@
 
 set -euo pipefail
 
-INSTALLER_VERSION="1.1.0"
+INSTALLER_VERSION="1.2.0"
 PUBLIC_REPO_BASE="https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main"
 GHCR_IMAGE_BACKEND="ghcr.io/solfins-dev/3dx-gateway:latest"
 
@@ -341,9 +341,43 @@ detect_existing_install() {
         our_unit_exists=1
     fi
 
-    if [[ -z "$existing_containers" && -z "$existing_units" ]]; then
+    # Also check for orphan volumes from a removed prior install at this same
+    # slug. Postgres only initialises POSTGRES_PASSWORD when its data dir is
+    # empty -- inheriting an old pgdata volume + a freshly-generated password
+    # in .env means EVERY app->db connection 28P01s and the app crashloops.
+    local orphan_volumes
+    orphan_volumes=$(docker volume ls --format '{{.Name}}' 2>/dev/null \
+        | grep -E "^${INSTALL_SLUG}_(pgdata|app_data|caddy_data|caddy_config)$" || true)
+
+    if [[ -z "$existing_containers" && -z "$existing_units" && -z "$orphan_volumes" ]]; then
         ok "No prior 3DX Gateway / bom-explorer install detected"
         return 0
+    fi
+
+    if [[ -n "$orphan_volumes" ]]; then
+        warn "Orphan volumes from prior install at slug '${INSTALL_SLUG}' detected:"
+        echo "$orphan_volumes" | sed 's/^/      volume:    /'
+        substep ""
+        substep "If left in place, postgres will reuse the OLD pgdata directory which has the"
+        substep "OLD POSTGRES_PASSWORD baked into pg_hba.conf -- the freshly-generated password"
+        substep "in .env won't match and the app will crashloop with FATAL: 28P01."
+        if [[ $ARG_YES -eq 1 ]]; then
+            warn "(--yes mode) WIPING orphan volumes for clean install."
+            for v in $orphan_volumes; do docker volume rm "$v" >/dev/null 2>&1 || true; done
+            ok "Orphan volumes removed"
+        else
+            local yn
+            yn=$(prompt_yn "Wipe these volumes (RECOMMENDED for fresh install; loses any prior DB data)?" "y")
+            if [[ "$yn" == "y" ]]; then
+                for v in $orphan_volumes; do
+                    docker volume rm "$v" >/dev/null 2>&1 || warn "Could not remove $v (may be in use)"
+                done
+                ok "Orphan volumes removed"
+            else
+                warn "Keeping orphan volumes. WARNING: app may crashloop if pgdata password mismatches."
+                substep "If that happens: sudo systemctl stop ${INSTALL_SLUG}; docker volume rm ${INSTALL_SLUG}_pgdata; sudo systemctl start ${INSTALL_SLUG}"
+            fi
+        fi
     fi
 
     warn "Existing artifacts detected (this install will run side-by-side):"
