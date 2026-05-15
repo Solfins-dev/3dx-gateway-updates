@@ -41,7 +41,7 @@
 
 set -euo pipefail
 
-INSTALLER_VERSION="1.0.0"
+INSTALLER_VERSION="1.1.0"
 PUBLIC_REPO_BASE="https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main"
 GHCR_IMAGE_BACKEND="ghcr.io/solfins-dev/3dx-gateway:latest"
 
@@ -73,6 +73,14 @@ LICENSE_PATH=""
 TELEMETRY_ENABLED=""
 INSTALL_HELPER=0
 POSTGRES_PASSWORD=""
+
+# Install slug — derived from basename(INSTALL_DIR). All container_name,
+# systemd unit, and helper socket names are namespaced by this so two
+# install.sh runs at different dirs land side-by-side without colliding
+# on Docker's global container-name registry or systemd's unit registry.
+# Default install dir 'opt/3dx-gateway' -> slug '3dx-gateway' (= existing
+# behaviour for the first/only install).
+INSTALL_SLUG=""
 
 # ANSI escape sequences — use $'...' (ANSI-C quoting) so the byte 0x1B is
 # embedded literally. Single-quoted '\033' is the 4-character string "\033"
@@ -304,7 +312,60 @@ prompt_install_dir() {
     if [[ -f "$INSTALL_DIR/docker-compose.yml" ]]; then
         die "An install already exists at $INSTALL_DIR (docker-compose.yml present). Remove it first or use a different --install-dir."
     fi
-    ok "Will install to: $INSTALL_DIR"
+    derive_slug
+    ok "Will install to: $INSTALL_DIR (slug: $INSTALL_SLUG)"
+}
+
+derive_slug() {
+    # Map basename(INSTALL_DIR) to a Docker/systemd-friendly slug.
+    # Allowed chars: [a-z0-9-_]. Anything else collapses to '-'. Multiple
+    # consecutive dashes are squeezed; leading/trailing dashes stripped.
+    local raw
+    raw=$(basename "$INSTALL_DIR" | tr '[:upper:]' '[:lower:]')
+    INSTALL_SLUG=$(echo "$raw" | tr -c 'a-z0-9_-' '-' | sed 's/-\+/-/g; s/^-\|-$//g')
+    if [[ -z "$INSTALL_SLUG" ]]; then
+        INSTALL_SLUG="3dx-gateway"
+    fi
+}
+
+detect_existing_install() {
+    step "Checking for existing 3DX Gateway artifacts on this host"
+    local existing_containers
+    existing_containers=$(docker ps -a --format '{{.Names}}' 2>/dev/null \
+        | grep -E '^(3dx-gateway|bom-explorer)' || true)
+    local existing_units
+    existing_units=$(systemctl list-unit-files --type=service --no-legend 2>/dev/null \
+        | awk '/3dx-gateway|bom-explorer/ {print $1}' || true)
+    local our_unit_exists=0
+    if systemctl list-unit-files "${INSTALL_SLUG}.service" --no-legend 2>/dev/null | grep -q "${INSTALL_SLUG}.service"; then
+        our_unit_exists=1
+    fi
+
+    if [[ -z "$existing_containers" && -z "$existing_units" ]]; then
+        ok "No prior 3DX Gateway / bom-explorer install detected"
+        return 0
+    fi
+
+    warn "Existing artifacts detected (this install will run side-by-side):"
+    if [[ -n "$existing_containers" ]]; then
+        echo "$existing_containers" | sed 's/^/      container:  /'
+    fi
+    if [[ -n "$existing_units" ]]; then
+        echo "$existing_units" | sed 's/^/      systemd:    /'
+    fi
+    substep ""
+    substep "This install will use slug '${INSTALL_SLUG}':"
+    substep "  containers: ${INSTALL_SLUG}-app, ${INSTALL_SLUG}-db$([[ "$TLS_MODE" != "none" ]] && echo ", ${INSTALL_SLUG}-caddy")"
+    substep "  systemd:    ${INSTALL_SLUG}.service"
+    substep "  port:       ${APP_PORT} (must differ from existing instances; install.sh checks this next)"
+    if [[ $our_unit_exists -eq 1 ]]; then
+        die "A systemd unit '${INSTALL_SLUG}.service' is already installed. Remove it first ('systemctl disable --now ${INSTALL_SLUG}; rm /etc/systemd/system/${INSTALL_SLUG}.service; systemctl daemon-reload') or pick a different --install-dir."
+    fi
+    if [[ $ARG_YES -eq 0 ]]; then
+        local yn
+        yn=$(prompt_yn "Proceed with parallel install?" "y")
+        [[ "$yn" == "y" ]] || die "Cancelled."
+    fi
 }
 
 prompt_hostname() {
@@ -458,12 +519,15 @@ write_compose_yml() {
 services:
   app:
     image: ${GHCR_IMAGE_BACKEND}
-    container_name: 3dx-gateway-app
+    container_name: ${INSTALL_SLUG}-app
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__BomExplorer: "Host=postgres;Port=5432;Database=bom_explorer;Username=bomapp;Password=\${POSTGRES_PASSWORD}"
       Telemetry__Enabled: "$([[ $TELEMETRY_ENABLED == on ]] && echo true || echo false)"
+      # Email-OTP onboarding path -- off by default; flip via .env once
+      # Solfins has wired up the M365 SMTP secrets on the Worker side.
+      Licensing__RequestEnabled: "\${LICENSING_REQUEST_ENABLED:-false}"
 EOF
 
     # When NOT using a TLS overlay, expose the port directly on the host.
@@ -495,7 +559,7 @@ EOF
 
   postgres:
     image: postgres:16-alpine
-    container_name: 3dx-gateway-db
+    container_name: ${INSTALL_SLUG}-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: bom_explorer
@@ -521,7 +585,7 @@ write_caddy_overlay() {
 services:
   caddy:
     image: caddy:2.9-alpine
-    container_name: 3dx-gateway-caddy
+    container_name: ${INSTALL_SLUG}-caddy
     restart: unless-stopped
     ports:
       - "${APP_PORT}:443"
@@ -591,6 +655,10 @@ HOSTNAME=${HOSTNAME_FQDN}
 APP_PORT=${APP_PORT}
 TLS_MODE=${TLS_MODE}
 TELEMETRY=${TELEMETRY_ENABLED}
+# Onboarding email-OTP path. Default false: customers install via direct
+# .lic upload (or pre-install --license). Flip to "true" after Solfins
+# admin wires up the M365 SMTP path, then \`systemctl restart ${INSTALL_SLUG}\`.
+LICENSING_REQUEST_ENABLED=false
 EOF
     chmod 600 "$INSTALL_DIR/.env"
 }
@@ -625,10 +693,11 @@ write_systemd_unit() {
     # Static unit -- customer-specific compose flags live in compose.env, not
     # baked into ExecStart. Adding a new overlay (e.g. docker-compose.staging.yml)
     # is then a one-line edit + `systemctl restart`; the unit itself never
-    # needs to change.
-    cat > /etc/systemd/system/3dx-gateway.service <<EOF
+    # needs to change. Unit name is namespaced by INSTALL_SLUG so multiple
+    # parallel installs don't collide.
+    cat > "/etc/systemd/system/${INSTALL_SLUG}.service" <<EOF
 [Unit]
-Description=3DX Gateway -- Solfins customer distribution
+Description=3DX Gateway (${INSTALL_SLUG}) -- Solfins customer distribution
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target
@@ -638,8 +707,8 @@ Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=${INSTALL_DIR}
 EnvironmentFile=${INSTALL_DIR}/compose.env
-ExecStart=/usr/bin/docker compose \${COMPOSE_FILES} up -d
-ExecStop=/usr/bin/docker compose \${COMPOSE_FILES} down
+ExecStart=/usr/bin/docker compose -p ${INSTALL_SLUG} \${COMPOSE_FILES} up -d
+ExecStop=/usr/bin/docker compose -p ${INSTALL_SLUG} \${COMPOSE_FILES} down
 TimeoutStartSec=300
 
 [Install]
@@ -683,6 +752,17 @@ write_files() {
 
 install_helper_files() {
     [[ $INSTALL_HELPER -eq 1 ]] || return 0
+    # Helper uses a single global socket path /run/3dx-gateway-helper.sock --
+    # multiple parallel installs each running their own helper would race on
+    # that path, last writer wins. Only install for the canonical slug; the
+    # secondary install can still be operated manually
+    # (`docker compose -p $INSTALL_SLUG ... up -d`) from the install dir.
+    if [[ "$INSTALL_SLUG" != "3dx-gateway" ]]; then
+        warn "Apply Update helper is global (single socket). Skipping for parallel install '${INSTALL_SLUG}'."
+        substep "  -> Use: cd ${INSTALL_DIR} && docker compose -p ${INSTALL_SLUG} \$(cat compose.env|sed 's/COMPOSE_FILES=//;s/\"//g') pull && ... up -d"
+        substep "  -> for one-click upgrades on this instance."
+        return 0
+    fi
     step "Installing Apply Update host helper"
     local tmpdir
     tmpdir=$(mktemp -d)
@@ -700,14 +780,14 @@ install_systemd_service() {
     write_compose_env
     ok "compose.env (COMPOSE_FILES=$(compute_compose_files))"
     write_systemd_unit
-    systemctl enable 3dx-gateway.service >/dev/null
-    ok "3dx-gateway.service enabled at boot"
+    systemctl enable "${INSTALL_SLUG}.service" >/dev/null
+    ok "${INSTALL_SLUG}.service enabled at boot"
 }
 
 start_stack() {
     step "Pulling images + starting containers (~30-60 s)"
     cd "$INSTALL_DIR"
-    systemctl start 3dx-gateway.service
+    systemctl start "${INSTALL_SLUG}.service"
     ok "Stack started"
 
     # Wait for app health (up to 90 s). We probe from the host -- NOT via
@@ -731,7 +811,7 @@ start_stack() {
         sleep 3
         ((++attempts))
     done
-    warn "Backend didn't pass healthcheck within 90 s. Containers are up; check logs: \`docker logs 3dx-gateway-app\`"
+    warn "Backend didn't pass healthcheck within 90 s. Containers are up; check logs: \`docker logs ${INSTALL_SLUG}-app\`"
 }
 
 # Builds the URL used by wait-for-health + smoke_test. For HTTP we hit
@@ -795,8 +875,8 @@ ${C_BOLD}${C_GREEN}✅ 3DX Gateway installed.${C_RESET}
 
   ${C_BOLD}Open in browser:${C_RESET}  $(build_browser_url)
   ${C_BOLD}Install dir:${C_RESET}      ${INSTALL_DIR}
-  ${C_BOLD}Service:${C_RESET}          systemctl {status|restart|stop} 3dx-gateway
-  ${C_BOLD}Logs:${C_RESET}             docker logs -f 3dx-gateway-app
+  ${C_BOLD}Service:${C_RESET}          systemctl {status|restart|stop} ${INSTALL_SLUG}
+  ${C_BOLD}Logs:${C_RESET}             docker logs -f ${INSTALL_SLUG}-app
 
 EOF
     if [[ "$TLS_MODE" == "auto" ]]; then
@@ -815,7 +895,7 @@ EOF
     The gateway is running but will refuse logins until license.lic is
     provided. When Solfins emails it, drop it in place and restart:
       sudo cp /path/to/license.lic ${INSTALL_DIR}/license.lic
-      sudo systemctl restart 3dx-gateway
+      sudo systemctl restart ${INSTALL_SLUG}
 
 EOF
     fi
@@ -865,6 +945,7 @@ main() {
     prompt_hostname
     prompt_tls_mode
     prompt_port
+    detect_existing_install
     prompt_license
     prompt_telemetry
     prompt_helper
