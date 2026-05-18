@@ -1,9 +1,9 @@
 {
     "schemaVersion": 2,
     "backend": {
-        "version": "1.1.0",
+        "version": "1.1.2",
         "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-        "changelog": "First-run license wizard at /onboarding -- drag/drop or paste your .lic file, signature is validated server-side, no shell needed. Domain allow-list field on the .lic schema (licensedDomains): combine with named users as a UNION so anyone at @company.com can log in up to the seat cap, no .lic re-issue per new hire. Email/OTP onboarding path is gated behind a Licensing__RequestEnabled flag (default false) until the M365 SMTP path goes live; backend returns a friendly 503 + the wizard hides the request CTA when off. Windows port of the Apply Update host helper -- Scheduled Task on TCP 5171 with bearer-token auth, gateway container reaches it via host.docker.internal. Reload() NRE fix on the trial-mode branch.",
+        "changelog": "Reload Staging From Snapshot button in the BOM Explorer toolbar -- wipes the tenant's staging area and re-creates files from BomFile.FileContent blobs persisted in the latest saved snapshot. Recovery path for 'lost staging' (container restart, accidental Clear, aborted Generate) without re-running the full Generate cycle. Also picks up the v1.1.1 HEALTHCHECK fix (curl missing in dotnet/aspnet:8.0 base image broke the probe since v1.0.0; manifest was stuck at 1.1.0 so customer installs never saw the badge).",
         "sha256": null
     },
     "cadBridge": {
