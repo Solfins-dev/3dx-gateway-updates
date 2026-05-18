@@ -7,9 +7,9 @@
         "sha256": null
     },
     "cadBridge": {
-        "version": "1.8.27",
-        "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.27/CadBridge-Setup.zip",
-        "changelog": "ADR-015 Phase 2 release. (1) SHA256 verify on Apply Update: agent now downloads from /api/downloads/CadBridge-Setup.zip?raw=true and hashes the bytes locally before letting Setup.bat touch anything; mismatch refuses to install. Legacy v1 manifest without sha256 degrades to warning-log + proceed (no regression for stale gateways). (2) De-elevate launched agent: Setup.ps1 now spawns the new agent at medium IL via a one-shot Scheduled Task (RunLevel=Limited), so the post-install tray runs at the same IL as the reboot-Startup-shortcut path -- ends the Task Manager 'Administrator' inconsistency.",
-        "sha256": "9d356223531297b23e7c2c27a3eabe2740cd6c9725893e93678a54d1b3f622f7"
+        "version": "1.8.35",
+        "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.35/CadBridge-Setup.zip",
+        "changelog": "PLMID identity chain end-to-end -- /sw-preflight + /list-open-documents now enrich open docs with plmId (IModelDocExtension.GetPLMID) and SummaryInfo title; frontend matches against the EngItem/3DShape pair via buildOursPidSet, with a trust-the-user step-4 fallback for cases where the chain breaks. Auto-open via /open-from-3dx fires when preflight finds no matching root open (replaces the lost 'Open in SW' affordance after Phase 2c-3 strict-mode gate). Stall threshold 3min -> 10min for slow internet / 3DX cold cache. STEP + 3D PDF now co-save during the post-loop standalone phase -- saves one SW open per component on dual-format runs (~50s for a 10-component BOM on cold cache). New diagnostic GET /api/cadbridge/sw-plm-props dumps every custom property + $PLMPRP probe pattern on the active doc.",
+        "sha256": "6592b31bc02b01b13fe2ec4a1992c603ce6eb5d4dc3609ba21e429ea9a5be151"
     }
 }
