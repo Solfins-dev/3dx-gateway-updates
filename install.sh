@@ -41,7 +41,7 @@
 
 set -euo pipefail
 
-INSTALLER_VERSION="1.2.0"
+INSTALLER_VERSION="1.3.0"
 PUBLIC_REPO_BASE="https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main"
 GHCR_IMAGE_BACKEND="ghcr.io/solfins-dev/3dx-gateway:latest"
 
@@ -588,6 +588,12 @@ EOF
       # signature-validated paths -- a bind-mount RW is not the security
       # surface here, the signed-license requirement is.
       - ./license.lic:/app/license.lic
+      # appsettings.json is bind-mounted RW so every Settings UI change
+      # (Pantheon credentials, field mappings, webhooks, etc.) persists on
+      # the host across docker compose pull + recreate. WITHOUT this mount,
+      # all customer settings live in the writable container layer and
+      # vanish on the first Apply Update.
+      - ./appsettings.json:/app/appsettings.json
       # CadBridge ZIP is fetched once at install time + refreshed by Apply
       # Update (Settings -> Updates -> CadBridge). Backend serves it via
       # /api/downloads/CadBridge-Setup.zip with server-url.txt injection.
@@ -824,6 +830,34 @@ write_files() {
     fi
     mkdir -p "$INSTALL_DIR/data"
     fetch_cadbridge_zip
+    seed_appsettings_if_missing
+}
+
+seed_appsettings_if_missing() {
+    # appsettings.json is bind-mounted RW (write_compose_yml) so every Settings
+    # UI write persists across `docker compose pull + up -d`. The image bakes
+    # /app/appsettings.json with sensible defaults (telemetry endpoint,
+    # Pantheon field-mapping placeholders, etc.); we extract those defaults
+    # from the image on first install so the bind-mount target exists and
+    # contains real defaults (an empty placeholder would make ASP.NET load `{}`
+    # and lose every default value the image ships).
+    local target="$INSTALL_DIR/appsettings.json"
+    if [[ -f "$target" && -s "$target" ]]; then
+        ok "appsettings.json preserved ($(wc -c <"$target") bytes -- customer settings kept)"
+        return 0
+    fi
+    step "Seeding appsettings.json from image (first-run defaults)"
+    if ! docker image inspect "$GHCR_IMAGE_BACKEND" &>/dev/null; then
+        substep "Pulling $GHCR_IMAGE_BACKEND for defaults extraction (one-time)"
+        docker pull "$GHCR_IMAGE_BACKEND" >/dev/null 2>&1 || \
+            die "Could not pull $GHCR_IMAGE_BACKEND -- check Docker registry access."
+    fi
+    if ! docker run --rm --entrypoint cat "$GHCR_IMAGE_BACKEND" /app/appsettings.json > "$target" 2>/dev/null; then
+        rm -f "$target"
+        die "Could not extract /app/appsettings.json from $GHCR_IMAGE_BACKEND."
+    fi
+    chmod 644 "$target"
+    ok "appsettings.json seeded ($(wc -c <"$target") bytes) -- Pantheon/SMTP/field-mappings now persist across upgrades."
 }
 
 fetch_cadbridge_zip() {
@@ -916,13 +950,10 @@ start_stack() {
     systemctl start "${INSTALL_SLUG}.service"
     ok "Stack started"
 
-    # Wait for app health (up to 90 s). We probe from the host -- NOT via
-    # `docker exec 3dx-gateway-app curl ...` -- because the published .NET
-    # backend image does not bundle curl, so the in-container probe always
-    # returns 127 and the loop times out even when the app is fine. Docker's
-    # own healthcheck (declared in docker-compose.yml) has the same caveat;
-    # the container shows "(unhealthy)" cosmetically even when the app
-    # serves traffic perfectly.
+    # Wait for app health (up to 90 s) by probing from the host (no docker
+    # exec round-trip). Docker's own HEALTHCHECK is now real (curl is bundled
+    # in the runtime image as of 2026-05-15) and the container reflects it,
+    # but probing from the host stays cheaper for the install-time loop.
     #
     # Pre-increment `((++attempts))` is intentional: the post-increment form
     # returns the old value (0 first iteration) which trips set -e.
