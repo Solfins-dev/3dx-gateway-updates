@@ -85,7 +85,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # Constants
-$INSTALLER_VERSION   = '1.5.0'
+$INSTALLER_VERSION   = '1.6.0'
 $DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
 $WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
@@ -822,6 +822,11 @@ $portsBlock
       # uploaded license back to disk; backend only writes signature-validated
       # content.
       - ./license.lic:/app/license.lic
+      # appsettings.json mounted RW so Settings UI changes (Pantheon
+      # credentials, field mappings, webhooks) survive docker compose pull
+      # + recreate. Without this, customer settings live in the writable
+      # container layer and vanish on the first Apply Update.
+      - ./appsettings.json:/app/appsettings.json
     depends_on:
       postgres:
         condition: service_healthy
@@ -973,6 +978,47 @@ function Write-Files {
         Write-Ok "license.lic placeholder (empty -- copy the real one from Solfins later)"
     }
     New-Item -ItemType Directory -Force -Path (Join-Path $Script:EffInstallDir 'data') | Out-Null
+    Initialize-AppSettings
+}
+
+function Initialize-AppSettings {
+    # appsettings.json is bind-mounted RW (Write-ComposeYml) so every Settings
+    # UI write persists across `docker compose pull + up -d`. The image bakes
+    # /app/appsettings.json with sensible defaults; extract those defaults
+    # from the image on first install so the bind-mount target exists with
+    # real defaults (empty placeholder would make ASP.NET load `{}` and lose
+    # every default value the image ships).
+    $target = Join-Path $Script:EffInstallDir 'appsettings.json'
+    if (Test-Path $target) {
+        $sz = (Get-Item $target).Length
+        if ($sz -gt 0) {
+            Write-Ok "appsettings.json preserved ($sz bytes -- customer settings kept)"
+            return
+        }
+    }
+    Write-Step 'Seeding appsettings.json from image (first-run defaults)'
+    & docker image inspect $GHCR_IMAGE 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Substep "Pulling $GHCR_IMAGE for defaults extraction (one-time)"
+        & docker pull $GHCR_IMAGE 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Throw-Stop "Could not pull $GHCR_IMAGE -- check Docker registry access."
+        }
+    }
+    # Capture stdout via Start-Process (redirected to file). Plain
+    # `docker run ... > $target` works in PS but encoding semantics differ
+    # across PS 5.1 vs 7; redirect-to-file via Start-Process avoids the trap.
+    $tmpOut = [System.IO.Path]::GetTempFileName()
+    $proc = Start-Process -FilePath docker `
+        -ArgumentList @('run','--rm','--entrypoint','cat',$GHCR_IMAGE,'/app/appsettings.json') `
+        -Wait -NoNewWindow -PassThru -RedirectStandardOutput $tmpOut
+    if ($proc.ExitCode -ne 0) {
+        Remove-Item -Force $tmpOut -ErrorAction SilentlyContinue
+        Throw-Stop "Could not extract /app/appsettings.json from $GHCR_IMAGE."
+    }
+    Move-Item -Force -Path $tmpOut -Destination $target
+    $sz = (Get-Item $target).Length
+    Write-Ok "appsettings.json seeded ($sz bytes) -- Pantheon/SMTP/field-mappings now persist across upgrades."
 }
 
 #--- Action -----------------------------------------------------------------
