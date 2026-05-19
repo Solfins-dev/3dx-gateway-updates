@@ -214,7 +214,11 @@ services:
       ConnectionStrings__BomExplorer: "Host=postgres;Port=5432;Database=bom_explorer;Username=bomapp;Password=${POSTGRES_PASSWORD}"
     volumes:
       - app_data:/app/data
-      - ./license.lic:/app/license.lic:ro
+      - ./license.lic:/app/license.lic
+      # appsettings.json is bind-mounted RW so Settings UI changes
+      # (Pantheon credentials, field mappings, webhooks) survive
+      # `docker compose pull + up`. See §1.B.5 for how to seed it.
+      - ./appsettings.json:/app/appsettings.json
     depends_on:
       postgres:
         condition: service_healthy
@@ -269,9 +273,32 @@ cp /path/to/license.lic ./license.lic
 chmod 644 license.lic
 ```
 
-The container mounts this file read-only at `/app/license.lic`.
+The container mounts this file RW at `/app/license.lic` so the first-run
+wizard can upload a customer-side replacement when a license expires;
+signature validation gates the write, not the mount mode.
 
-#### 1.B.5 Pull and start
+#### 1.B.5 Seed `appsettings.json` from the image
+
+The bind-mount in §1.B.2 means `/app/appsettings.json` inside the
+container is whatever file you put at `./appsettings.json` on the host.
+Without a seeded file, ASP.NET would load `{}` and lose every default
+the image ships (telemetry endpoint, Pantheon field-mapping defaults,
+etc.). Extract the baked-in defaults from the image:
+
+```sh
+docker pull ghcr.io/solfins-dev/3dx-gateway:latest
+docker run --rm --entrypoint cat \
+  ghcr.io/solfins-dev/3dx-gateway:latest /app/appsettings.json \
+  > appsettings.json
+chmod 644 appsettings.json
+```
+
+Customer settings written through the web UI (Pantheon credentials,
+field mappings, webhooks) land in this file directly — meaning they
+now survive every `docker compose pull + up -d` and one-click Apply
+Update. The one-line installer in §1.A does this automatically.
+
+#### 1.B.6 Pull and start
 
 ```sh
 docker compose -f docker-compose.prod.yml up -d
@@ -289,7 +316,7 @@ curl http://localhost:5000/api/license/status
 # Expected: {"valid":true,"customer":"<your name>","modules":[...],"expiresAt":"..."}
 ```
 
-#### 1.B.6 (Recommended) TLS via reverse proxy
+#### 1.B.7 (Recommended) TLS via reverse proxy
 
 For LAN access from workstations you'll want HTTPS. Two common patterns:
 
@@ -398,6 +425,67 @@ available:
   available — v1.x.y` item with a one-shot balloon notification on first
   detection.
 
+### 4.0 Upgrading from pre-2026-05-19 installs (one-time migration)
+
+**Skip this section** if you installed via `install.sh` v1.3.0+ or
+`install.ps1` v1.6.0+ — your install already bind-mounts
+`appsettings.json` on the host.
+
+Earlier installs kept `appsettings.json` *inside* the container
+writable layer. Every `docker compose pull && up -d` (manual update OR
+one-click Apply Update) re-created the container from the image, which
+wiped every setting written through the web UI: Pantheon credentials,
+field mappings, webhooks, integration toggles. Licenses survived (they
+were bind-mounted), but Settings did not.
+
+To move your existing customer settings onto the host before the next
+upgrade:
+
+**Linux:**
+
+```sh
+cd /opt/3dx-gateway   # or wherever your compose dir is
+
+# 1) Copy the LIVE container's current appsettings.json (with all your
+#    Settings UI values intact) onto the host.
+docker cp 3dx-gateway-app:/app/appsettings.json ./appsettings.json
+chmod 644 appsettings.json
+
+# 2) Add the bind-mount to docker-compose.yml under the `app:` service's
+#    `volumes:` block. Open the file and insert this line next to the
+#    existing `./license.lic:/app/license.lic` line:
+#       - ./appsettings.json:/app/appsettings.json
+#    (No :ro; the Settings UI writes to it.)
+
+# 3) Recreate the container so the new mount takes effect.
+sudo systemctl restart 3dx-gateway       # or: docker compose up -d
+
+# 4) Verify in the web UI that Settings still reads your Pantheon
+#    credentials, field mappings, webhooks. They should be exactly as
+#    they were before. From now on, every Apply Update preserves them.
+```
+
+**Windows:**
+
+```powershell
+Set-Location C:\3dx-gateway   # your install dir
+
+# 1) Copy the live container's current appsettings.json onto the host.
+docker cp 3dx-gateway-app:/app/appsettings.json .\appsettings.json
+
+# 2) Edit docker-compose.yml: add this line to the app service's volumes:
+#       - ./appsettings.json:/app/appsettings.json
+#    next to the existing ./license.lic line.
+
+# 3) Recreate the container.
+docker compose up -d
+```
+
+If you accidentally already lost your settings on a prior upgrade, you
+can either re-enter them in the web UI (one-time) or, if you have a
+recent backup of the container's `/app/appsettings.json`, copy that
+file to the host path before the recreate in step 3.
+
 ### 4.1 Apply a backend update
 
 Two paths:
@@ -435,25 +523,41 @@ the docker-compose overlay) ship in the public manifest repo at
 `Solfins-dev/3dx-gateway-updates/scripts/host/`. The simplest install:
 
 ```sh
-cd ~/3dx-gateway
+cd /opt/3dx-gateway   # or wherever your install lives
 # Grab the helper bundle (or copy them from the install email Solfins sent).
 for f in install-helper.sh uninstall-helper.sh 3dx-gateway-helper.sh \
          3dx-gateway-helper.socket 3dx-gateway-helper@.service; do
   curl -sSLO https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/scripts/host/$f
 done
-# Run the installer (creates systemd units, writes /usr/local/bin/3dx-gateway-helper.sh).
-# COMPOSE_DIR + COMPOSE_FILES override the helper defaults — if you layer
-# multiple compose files at runtime (e.g. prod + a TLS overlay), pass them
-# here too so the helper uses the same overlay set when applying updates:
+# Run the installer. It validates that COMPOSE_DIR contains a 3dx-gateway
+# customer install (refuses dev clones or unrelated stacks by default) and
+# auto-derives the COMPOSE_FILES overlay list from files present in
+# COMPOSE_DIR (docker-compose.yml + .tls.yml + .helper.yml if found).
+# To pin specific overlays explicitly, set COMPOSE_FILES yourself:
 #   sudo COMPOSE_DIR="$PWD" \
-#        COMPOSE_FILES="docker-compose.prod.yml docker-compose.helper.yml" \
+#        COMPOSE_FILES="docker-compose.yml docker-compose.tls.yml docker-compose.helper.yml" \
 #        bash install-helper.sh
-# Vanilla customers can omit COMPOSE_FILES (defaults to docker-compose.prod.yml).
-sudo COMPOSE_DIR="$PWD" bash install-helper.sh
-# Layer the overlay so the gateway container can reach the socket
-curl -sSLO https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/docker-compose.helper.yml
-docker compose -f docker-compose.prod.yml -f docker-compose.helper.yml up -d
+# The default COMPOSE_DIR is /opt/3dx-gateway, so on canonical installs
+# you can run it without arguments.
+sudo bash install-helper.sh
+# Layer the overlay so the gateway container can reach the socket. If the
+# overlay isn't already in your compose dir (your installer wrote it for
+# you), fetch the canonical copy:
+[ -f docker-compose.helper.yml ] || curl -sSLO https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/docker-compose.helper.yml
+docker compose -f docker-compose.yml -f docker-compose.helper.yml up -d
 ```
+
+> **Multi-stack hosts (dev + customer install side-by-side).**
+> The helper uses a single global socket at
+> `/run/3dx-gateway-helper.sock`. Installing it against the wrong
+> `COMPOSE_DIR` makes the UI's Apply Update button operate on a stack
+> other than the one the UI belongs to — possibly tearing down unrelated
+> containers as collateral damage (real incident 2026-05-18). The
+> installer's image-sniff guard prevents the most common case
+> (`COMPOSE_DIR` pointing at a non-gateway compose project), but on a
+> host with multiple 3dx-gateway installs, only one can own the socket.
+> See [[reference-helper-single-socket-shared-stacks]] for the
+> workaround pattern.
 
 To remove it later: `sudo bash uninstall-helper.sh` and drop the
 `-f docker-compose.helper.yml` from your up command.
