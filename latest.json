@@ -1,9 +1,9 @@
 {
     "schemaVersion": 2,
     "backend": {
-        "version": "1.1.3",
+        "version": "1.1.4",
         "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-        "changelog": "Apply Update one-click is now gated on ASPNETCORE_ENVIRONMENT=Production. Dev/staging stacks see a static 'update manually' notice instead of the destructive Apply button. Background: today's dev01 incident saw a click in the customer-install UI run the host helper, but the helper had been installed targeting the dev stack -- docker compose tried to recreate the wrong containers and wiped the customer install's app+db mid-flight. The helper socket is single-instance per host so a click in either UI hits the same helper; until we move to per-stack helpers, dev UIs should not surface the dangerous button at all. Customer installs (Production env) keep the existing Apply Update UX.",
+        "changelog": "Pantheon Settings field-mapping picker (the '+' button) now ships with a baseline of well-known attributes always selectable -- Collaborative Space, Manufacturable/Procurable, 3DShape ID/Name/Title, Drawing ID/Name/Title/Revision/State, Tenant, plus common CAD custom properties (Part Number, Description, Material, Weight, Title, Author, etc.). Previously the dropdown only showed attributes already present in the most recent saved snapshot, so a fresh install or sparse snapshot looked nearly empty in the Enterprise and CAD Properties sections even though those attributes exist on real items at sync time. Customer-reported.",
         "sha256": null
     },
     "cadBridge": {
