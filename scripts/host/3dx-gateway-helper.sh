@@ -27,10 +27,11 @@ set -euo pipefail
 
 COMPOSE_DIR="${COMPOSE_DIR:-/opt/3dx-gateway}"
 # COMPOSE_FILES wins over COMPOSE_FILE — accepts a space-separated list so
-# dev01 (and other multi-overlay deployments) can layer staging + helper
-# overlays in the apply path. Customer prod installs typically set just
-# COMPOSE_FILE=docker-compose.prod.yml.
-COMPOSE_FILES_RAW="${COMPOSE_FILES:-${COMPOSE_FILE:-docker-compose.prod.yml}}"
+# dev01 (and other multi-overlay deployments) can layer tls + helper
+# overlays in the apply path. Default matches what install.sh writes for
+# fresh customer installs (docker-compose.yml -- the legacy
+# docker-compose.prod.yml name has been gone since installer v1.0).
+COMPOSE_FILES_RAW="${COMPOSE_FILES:-${COMPOSE_FILE:-docker-compose.yml}}"
 # shellcheck disable=SC2206  # word-splitting is intentional here
 COMPOSE_FILES_ARR=($COMPOSE_FILES_RAW)
 # Build the `-f <file>` flag list once so the worker bash can interpolate
