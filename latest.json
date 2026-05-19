@@ -1,9 +1,9 @@
 {
     "schemaVersion": 2,
     "backend": {
-        "version": "1.1.4",
+        "version": "1.1.5",
         "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-        "changelog": "Pantheon Settings field-mapping picker (the '+' button) now ships with a baseline of well-known attributes always selectable -- Collaborative Space, Manufacturable/Procurable, 3DShape ID/Name/Title, Drawing ID/Name/Title/Revision/State, Tenant, plus common CAD custom properties (Part Number, Description, Material, Weight, Title, Author, etc.). Previously the dropdown only showed attributes already present in the most recent saved snapshot, so a fresh install or sparse snapshot looked nearly empty in the Enterprise and CAD Properties sections even though those attributes exist on real items at sync time. Customer-reported.",
+        "changelog": "Fixes Generate (CAD Bridge) false-aborting with 'Other documents open in SolidWorks' when the only open assembly is the BOM root. Root cause: 3DX-Connector auto-loads sub-component parts (sDOC-XXXXX.SLDPRT) as transitive references of the opened assembly, and the strict-mode foreign-doc gate flagged those auto-loaded parts as 'not part of the BOM'. Parts can never be the wrong-BOM root (that risk applies only to a different root assembly being active), so the foreign-doc check now skips parts entirely. Drawings retain the check. Symptom on 1.1.4 and earlier: SW opens the assembly + drawings, Generate shows 'Korak 3 od 3 - Gotovo' but all formats report 0/N produced, no /api/cadbridge/generate ever fires because handleGenerate exits on the foreign-doc abort.",
         "sha256": null
     },
     "cadBridge": {
