@@ -41,7 +41,7 @@
 
 set -euo pipefail
 
-INSTALLER_VERSION="1.3.0"
+INSTALLER_VERSION="1.3.1"
 PUBLIC_REPO_BASE="https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main"
 GHCR_IMAGE_BACKEND="ghcr.io/solfins-dev/3dx-gateway:latest"
 
@@ -73,6 +73,7 @@ LICENSE_PATH=""
 TELEMETRY_ENABLED=""
 INSTALL_HELPER=0
 POSTGRES_PASSWORD=""
+CONFIG_PROTECTOR_SEED=""
 
 # Install slug — derived from basename(INSTALL_DIR). All container_name,
 # systemd unit, and helper socket names are namespaced by this so two
@@ -543,6 +544,38 @@ generate_secrets() {
     # entropy which is plenty for a Postgres password.
     POSTGRES_PASSWORD=$(openssl rand -hex 16)
     ok "Generated 32-char password (saved to .env mode 600 after write)"
+
+    step "Generating ConfigProtector seed"
+    # ConfigProtector (backend/Services/ConfigProtector.cs) AES-256-encrypts
+    # sensitive appsettings.json values (Pantheon passwords etc.). The key is
+    # derived from this seed; without a stable seed, the code falls back to
+    # Environment.MachineName, which inside Docker = container hostname =
+    # random container ID. Every `docker compose up -d` recreate (= every
+    # Apply Update) hands the new container a different MachineName, the
+    # derived key changes, and previously-encrypted ENC: values become
+    # unreadable -- the UI shows blank password fields and the user has to
+    # re-enter every connection credential. Setting ConfigProtector__Seed in
+    # the container env pins the key derivation to a stable per-install
+    # secret that survives recreates. 64 hex chars = 256 bits.
+    #
+    # On re-install (.env already present): PRESERVE the existing seed.
+    # appsettings.json is bind-mounted and survives orphan-volume wipe, so its
+    # ENC: values are still encrypted with the original seed. Regenerating
+    # the seed here would silently lose every encrypted password the customer
+    # had set (same failure mode as the Apply Update bug this seed exists to
+    # fix). POSTGRES_PASSWORD does NOT get preserved because pgdata is wiped
+    # on the orphan-volumes branch above; the two have inverse retention.
+    local existing_seed=""
+    if [[ -f "$INSTALL_DIR/.env" ]]; then
+        existing_seed=$(grep -E '^CONFIG_PROTECTOR_SEED=' "$INSTALL_DIR/.env" 2>/dev/null | head -1 | cut -d= -f2-)
+    fi
+    if [[ -n "$existing_seed" ]]; then
+        CONFIG_PROTECTOR_SEED="$existing_seed"
+        ok "Preserved existing seed from .env (appsettings.json ENC: values stay readable)"
+    else
+        CONFIG_PROTECTOR_SEED=$(openssl rand -hex 32)
+        ok "Generated 64-char seed (saved to .env mode 600 after write)"
+    fi
 }
 
 write_compose_yml() {
@@ -568,6 +601,13 @@ services:
       # doesn't exist in production images and the endpoint returns
       # "CadBridge installer not built yet".
       CadBridgeInstaller__Path: /app/installers/CadBridge-Setup.zip
+      # ConfigProtector seed -- stable per-install secret read at container
+      # start to derive the AES-256 key for ENC: values in appsettings.json.
+      # MUST persist across Apply Updates or every encrypted password in
+      # appsettings.json (Pantheon main + DB credentials etc.) becomes
+      # unreadable and the customer has to re-type. .env survives container
+      # recreates because docker compose reads it from the host fs.
+      ConfigProtector__Seed: \${CONFIG_PROTECTOR_SEED}
 EOF
 
     # When NOT using a TLS overlay, expose the port directly on the host.
@@ -724,8 +764,13 @@ EOF
 write_env() {
     cat > "$INSTALL_DIR/.env" <<EOF
 # 3DX Gateway environment — generated $(date -Iseconds) by install.sh v${INSTALLER_VERSION}.
-# Keep this file out of version control; POSTGRES_PASSWORD is sensitive.
+# Keep this file out of version control; POSTGRES_PASSWORD + CONFIG_PROTECTOR_SEED are sensitive.
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+# CONFIG_PROTECTOR_SEED -- per-install stable secret for ConfigProtector
+# AES key derivation. DO NOT regenerate; rotating this invalidates every
+# ENC: value in appsettings.json (Pantheon passwords etc.) and the user
+# has to re-type every credential.
+CONFIG_PROTECTOR_SEED=${CONFIG_PROTECTOR_SEED}
 HOSTNAME=${HOSTNAME_FQDN}
 APP_PORT=${APP_PORT}
 TLS_MODE=${TLS_MODE}
