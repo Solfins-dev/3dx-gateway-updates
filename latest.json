@@ -1,15 +1,15 @@
 {
     "schemaVersion": 2,
     "backend": {
-        "version": "1.1.5",
+        "version": "1.1.6",
         "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-        "changelog": "Fixes Generate (CAD Bridge) false-aborting with 'Other documents open in SolidWorks' when the only open assembly is the BOM root. Root cause: 3DX-Connector auto-loads sub-component parts (sDOC-XXXXX.SLDPRT) as transitive references of the opened assembly, and the strict-mode foreign-doc gate flagged those auto-loaded parts as 'not part of the BOM'. Parts can never be the wrong-BOM root (that risk applies only to a different root assembly being active), so the foreign-doc check now skips parts entirely. Drawings retain the check. Symptom on 1.1.4 and earlier: SW opens the assembly + drawings, Generate shows 'Korak 3 od 3 - Gotovo' but all formats report 0/N produced, no /api/cadbridge/generate ever fires because handleGenerate exits on the foreign-doc abort.",
+        "changelog": "Generate UI counts (STEP/3DPDF/THUMB) now report the true on-disk state on re-runs instead of undercounting by sub-component files written under baseName fallback. Three-layer fix: frontend collectItemInfo synthesises {name}.SLDPRT/SLDASM fallback keys for itemInfoMap so the agent's platform-key lookup hits when the _cadFilename hint is null; SW post-Generate refresh now passes expectedPdf3D + sets genStatus.pdf3d (V5 path already did this -- SW path was the inconsistency); agent-side cache-hit branches across STEP / Thumb / PDF / DXF / 3D PDF / co-save STEP / V5 STEP now add the on-disk filename to result.GeneratedFiles[*]. result.GeneratedFiles[*] semantics shift from 'freshly written this run' to 'present on disk after this run' (numeric result.Generated counter unchanged). Requires CadBridge 1.8.36 -- bumps land together. Also tightens the Settings -> Telemetry card: disclosure paragraph moves into the toggle's hover tooltip; last-sent + install-id collapse to a single row.",
         "sha256": null
     },
     "cadBridge": {
-        "version": "1.8.35",
-        "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.35/CadBridge-Setup.zip",
-        "changelog": "PLMID identity chain end-to-end -- /sw-preflight + /list-open-documents now enrich open docs with plmId (IModelDocExtension.GetPLMID) and SummaryInfo title; frontend matches against the EngItem/3DShape pair via buildOursPidSet, with a trust-the-user step-4 fallback for cases where the chain breaks. Auto-open via /open-from-3dx fires when preflight finds no matching root open (replaces the lost 'Open in SW' affordance after Phase 2c-3 strict-mode gate). Stall threshold 3min -> 10min for slow internet / 3DX cold cache. STEP + 3D PDF now co-save during the post-loop standalone phase -- saves one SW open per component on dual-format runs (~50s for a 10-component BOM on cold cache). New diagnostic GET /api/cadbridge/sw-plm-props dumps every custom property + $PLMPRP probe pattern on the active doc.",
-        "sha256": "6592b31bc02b01b13fe2ec4a1992c603ce6eb5d4dc3609ba21e429ea9a5be151"
+        "version": "1.8.36",
+        "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.36/CadBridge-Setup.zip",
+        "changelog": "Cache-hit Skipped++ branches across STEP / Thumb / PDF / DXF / 3D PDF / STEP co-save / V5 STEP now also add the on-disk filename to result.GeneratedFiles[type]. Pre-1.8.36 only fresh-writes appended, which caused frontend's post-Generate checkGenerated to fall back to BOM-derived expected names on re-runs and undercount by 2 when sub-components were written under baseName fallback. result.GeneratedFiles[type] semantics now mean 'present on disk after this run', not 'freshly written this run'. Pairs with backend 1.1.6 -- bumps land together. Mirrors V5DrawingsGenerator cache-hit precedent (already correct since 2026-05-10).",
+        "sha256": "c9da61c101a5a15e0063acce13fd1869722acc5ede28b1a40e8b2e5753ca2deb"
     }
 }
