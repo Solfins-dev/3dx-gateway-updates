@@ -85,7 +85,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # Constants
-$INSTALLER_VERSION   = '1.6.0'
+$INSTALLER_VERSION   = '1.6.1'
 $DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
 $WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
@@ -104,8 +104,9 @@ $Script:EffTls              = $null
 $Script:EffLicense          = $null
 $Script:EffTelemetry        = $null
 $Script:EffHelper           = $null
-$Script:EffHelperToken      = $null
-$Script:EffPostgresPassword = $null
+$Script:EffHelperToken         = $null
+$Script:EffPostgresPassword    = $null
+$Script:EffConfigProtectorSeed = $null
 # Detected by Test-OS / Test-Docker; conservative defaults so downstream
 # checks behave sanely even if those steps are skipped (e.g. -DryRun edge).
 $Script:IsServer            = $false
@@ -786,6 +787,41 @@ function New-PostgresPassword {
     Write-Ok "Generated 32-char password (saved to .env after write)"
 }
 
+function New-ConfigProtectorSeed {
+    Write-Step "Generating ConfigProtector seed"
+    # See install.sh New-ConfigProtectorSeed comment for the full rationale.
+    # Short version: backend's ConfigProtector AES-256-encrypts Pantheon
+    # passwords etc. in appsettings.json; the key falls back to
+    # Environment.MachineName when ConfigProtector__Seed is unset, and
+    # MachineName inside Docker = random container hostname that changes on
+    # every `docker compose up -d` recreate. Without a stable seed, Apply
+    # Update silently invalidates every ENC: value and the customer has to
+    # re-type every credential. 64 hex chars = 256 bits.
+    #
+    # On re-install: PRESERVE the existing seed from .env so appsettings.json
+    # ENC: values (which are bind-mounted and survive volume wipe) stay
+    # readable. Inverse retention vs POSTGRES_PASSWORD which is regenerated
+    # because pgdata gets wiped on the orphan-volumes branch.
+    $envPath = Join-Path $Script:EffInstallDir '.env'
+    $existingSeed = $null
+    if (Test-Path $envPath) {
+        $line = Get-Content $envPath -ErrorAction SilentlyContinue |
+            Where-Object { $_ -match '^CONFIG_PROTECTOR_SEED=' } | Select-Object -First 1
+        if ($line) {
+            $existingSeed = ($line -split '=', 2)[1]
+        }
+    }
+    if ($existingSeed) {
+        $Script:EffConfigProtectorSeed = $existingSeed
+        Write-Ok "Preserved existing seed from .env (appsettings.json ENC: values stay readable)"
+    } else {
+        $bytes = New-Object byte[] 32
+        [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+        $Script:EffConfigProtectorSeed = ($bytes | ForEach-Object { '{0:x2}' -f $_ }) -join ''
+        Write-Ok "Generated 64-char seed (saved to .env after write)"
+    }
+}
+
 function Write-ComposeYml {
     $tlsNone = ($Script:EffTls -eq 'none')
     $telemBool = if ($Script:EffTelemetry -eq 'on') { 'true' } else { 'false' }
@@ -815,6 +851,12 @@ services:
       # Solfins has wired up the M365 SMTP secrets on the Worker side.
       # See INSTALL.md "Onboarding flow" for the customer-side switch.
       Licensing__RequestEnabled: "`${LICENSING_REQUEST_ENABLED:-false}"
+      # ConfigProtector seed -- stable per-install secret used to derive the
+      # AES-256 key for ENC: values in appsettings.json. MUST persist across
+      # Apply Updates or Pantheon passwords get silently invalidated on every
+      # recreate. .env survives container recreates because docker compose
+      # reads it from the host fs.
+      ConfigProtector__Seed: "`${CONFIG_PROTECTOR_SEED}"
 $portsBlock
     volumes:
       - app_data:/app/data
@@ -914,8 +956,13 @@ function Write-EnvFile {
     $helperLine = if ($Script:EffHelperToken) { "HELPER_TOKEN=$($Script:EffHelperToken)`r`n" } else { "" }
     $envContent = @"
 # 3DX Gateway environment -- generated $(Get-Date -Format 'o') by install.ps1 v$INSTALLER_VERSION.
-# Keep this file out of version control; POSTGRES_PASSWORD + HELPER_TOKEN are sensitive.
+# Keep this file out of version control; POSTGRES_PASSWORD + CONFIG_PROTECTOR_SEED + HELPER_TOKEN are sensitive.
 POSTGRES_PASSWORD=$($Script:EffPostgresPassword)
+# CONFIG_PROTECTOR_SEED -- per-install stable secret for ConfigProtector
+# AES key derivation. DO NOT regenerate; rotating this invalidates every
+# ENC: value in appsettings.json (Pantheon passwords etc.) and the user
+# has to re-type every credential.
+CONFIG_PROTECTOR_SEED=$($Script:EffConfigProtectorSeed)
 HOSTNAME=$($Script:EffHostname)
 APP_PORT=$($Script:EffPort)
 TLS_MODE=$($Script:EffTls)
@@ -1258,6 +1305,7 @@ function Main {
     }
 
     New-PostgresPassword
+    New-ConfigProtectorSeed
     Install-Helper
     Write-Files
     Start-Stack
