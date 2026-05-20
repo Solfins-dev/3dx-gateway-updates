@@ -212,6 +212,14 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__BomExplorer: "Host=postgres;Port=5432;Database=bom_explorer;Username=bomapp;Password=${POSTGRES_PASSWORD}"
+      # ConfigProtector seed -- per-install stable secret read at container
+      # start to derive the AES-256 key for ENC: values in appsettings.json
+      # (Pantheon passwords etc.). MUST persist across `docker compose up -d`
+      # recreates or Settings UI passwords get silently invalidated and the
+      # user has to re-type every credential on every Apply Update. .env
+      # carries the seed so it survives container recreates; rotating this
+      # value invalidates every existing ENC: value.
+      ConfigProtector__Seed: ${CONFIG_PROTECTOR_SEED}
     volumes:
       - app_data:/app/data
       - ./license.lic:/app/license.lic
@@ -255,8 +263,9 @@ volumes:
 #### 1.B.3 Create `.env`
 
 ```sh
-cat > .env <<'EOF'
-POSTGRES_PASSWORD=<choose a strong password and keep it>
+cat > .env <<EOF
+POSTGRES_PASSWORD=$(openssl rand -hex 16)
+CONFIG_PROTECTOR_SEED=$(openssl rand -hex 32)
 APP_PORT=5000
 EOF
 chmod 600 .env
@@ -265,6 +274,19 @@ chmod 600 .env
 The PostgreSQL password is set ONCE at first start. Changing it later
 requires either updating both the container and the existing data
 volume (not covered here) or destroying `pgdata` and re-syncing.
+
+`CONFIG_PROTECTOR_SEED` is read by the backend (`ConfigProtector__Seed`
+env var in §1.B.2) to derive the AES-256 key for encrypted values stored
+in `appsettings.json` (Pantheon passwords, etc.). It MUST stay stable
+for the lifetime of the install — rotating this value invalidates every
+existing `ENC:` value, the UI shows blank password fields, and the
+customer has to re-type every connection credential. Treat it as a
+durable per-install secret (`chmod 600 .env` already restricts it to
+root). When the container falls back to `Environment.MachineName` (no
+seed env var set), every `docker compose up -d` recreate hands the new
+container a different MachineName, the derived key changes, and
+previously-encrypted values become unreadable — the bug
+`install.sh v1.3.1` and `install.ps1 v1.6.1` close.
 
 #### 1.B.4 Drop in your license file
 
@@ -425,11 +447,28 @@ available:
   available — v1.x.y` item with a one-shot balloon notification on first
   detection.
 
-### 4.0 Upgrading from pre-2026-05-19 installs (one-time migration)
+### 4.0 Upgrading from pre-2026-05-20 installs (one-time migration)
 
-**Skip this section** if you installed via `install.sh` v1.3.0+ or
-`install.ps1` v1.6.0+ — your install already bind-mounts
-`appsettings.json` on the host.
+**Skip this section** if you installed via `install.sh` v1.3.1+ or
+`install.ps1` v1.6.1+ — your install already bind-mounts
+`appsettings.json` AND sets `ConfigProtector__Seed` for encrypted-
+password persistence.
+
+Earlier installs missed one or both of:
+1. The bind-mount for `appsettings.json` (pre-2026-05-19 / install.sh
+   v1.2.x / install.ps1 v1.5.x): every Apply Update silently wiped
+   every Settings UI value — Pantheon credentials, field mappings,
+   webhooks, integration toggles.
+2. The `ConfigProtector__Seed` env var (pre-2026-05-20 / install.sh
+   v1.3.0 / install.ps1 v1.6.0): the bind-mount preserved the FILE,
+   but encrypted password fields (`ENC:...` values) became unreadable
+   on every Apply Update because the AES key was derived from
+   `Environment.MachineName`, which inside Docker is the random
+   container hostname and changes on every recreate. Symptom: Settings
+   UI password fields appear empty after Apply Update even though
+   field mappings and other plaintext settings survive.
+
+The one-time migration covers both gaps:
 
 Earlier installs kept `appsettings.json` *inside* the container
 writable layer. Every `docker compose pull && up -d` (manual update OR
@@ -446,23 +485,34 @@ upgrade:
 ```sh
 cd /opt/3dx-gateway   # or wherever your compose dir is
 
-# 1) Copy the LIVE container's current appsettings.json (with all your
-#    Settings UI values intact) onto the host.
+# 1) (Pre-2026-05-19 only — skip if appsettings.json already exists on host.)
+#    Copy the LIVE container's appsettings.json onto the host.
 docker cp 3dx-gateway-app:/app/appsettings.json ./appsettings.json
 chmod 644 appsettings.json
 
-# 2) Add the bind-mount to docker-compose.yml under the `app:` service's
-#    `volumes:` block. Open the file and insert this line next to the
-#    existing `./license.lic:/app/license.lic` line:
+# 2) Add the bind-mount to docker-compose.yml under app.volumes:
 #       - ./appsettings.json:/app/appsettings.json
-#    (No :ro; the Settings UI writes to it.)
+#    (Skip if already present.)
 
-# 3) Recreate the container so the new mount takes effect.
+# 3) (Pre-2026-05-20 only — skip if .env already has CONFIG_PROTECTOR_SEED.)
+#    Generate a stable ConfigProtector seed and add it to .env + compose.
+#    Once set, do NOT rotate -- rotating invalidates every existing ENC:
+#    value in appsettings.json and you'd have to re-type credentials.
+echo "CONFIG_PROTECTOR_SEED=$(openssl rand -hex 32)" | sudo tee -a .env
+
+# 4) Add the env var to docker-compose.yml under app.environment (right
+#    next to ConnectionStrings__BomExplorer):
+#       ConfigProtector__Seed: ${CONFIG_PROTECTOR_SEED}
+#    (Skip if already present.)
+
+# 5) Recreate the container so the new mount + env var take effect.
 sudo systemctl restart 3dx-gateway       # or: docker compose up -d
 
-# 4) Verify in the web UI that Settings still reads your Pantheon
-#    credentials, field mappings, webhooks. They should be exactly as
-#    they were before. From now on, every Apply Update preserves them.
+# 6) Open Settings → Pantheon. Plaintext fields (FieldMappings, host,
+#    username, etc.) survive intact. Encrypted password fields show
+#    EMPTY -- the new seed cannot decrypt values encrypted under the
+#    old MachineName-derived key. Re-type each password ONCE and save.
+#    From this point forward, every Apply Update preserves them.
 ```
 
 **Windows:**
@@ -470,21 +520,31 @@ sudo systemctl restart 3dx-gateway       # or: docker compose up -d
 ```powershell
 Set-Location C:\3dx-gateway   # your install dir
 
-# 1) Copy the live container's current appsettings.json onto the host.
+# 1) (Pre-2026-05-19 only.) Copy the live container's appsettings.json onto the host.
 docker cp 3dx-gateway-app:/app/appsettings.json .\appsettings.json
 
-# 2) Edit docker-compose.yml: add this line to the app service's volumes:
+# 2) Edit docker-compose.yml: add this line under app.volumes (skip if present):
 #       - ./appsettings.json:/app/appsettings.json
-#    next to the existing ./license.lic line.
 
-# 3) Recreate the container.
+# 3) (Pre-2026-05-20 only.) Generate a stable ConfigProtector seed:
+$bytes = New-Object byte[] 32
+[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+$seed = ($bytes | ForEach-Object { '{0:x2}' -f $_ }) -join ''
+Add-Content .\.env "CONFIG_PROTECTOR_SEED=$seed"
+
+# 4) Edit docker-compose.yml under app.environment (skip if present):
+#       ConfigProtector__Seed: ${CONFIG_PROTECTOR_SEED}
+
+# 5) Recreate the container.
 docker compose up -d
+
+# 6) Settings → Pantheon → re-type encrypted passwords ONCE (see Linux step 6).
 ```
 
 If you accidentally already lost your settings on a prior upgrade, you
 can either re-enter them in the web UI (one-time) or, if you have a
 recent backup of the container's `/app/appsettings.json`, copy that
-file to the host path before the recreate in step 3.
+file to the host path before the recreate.
 
 ### 4.1 Apply a backend update
 
