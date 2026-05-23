@@ -7,9 +7,9 @@
         "sha256": null
     },
     "cadBridge": {
-        "version": "1.8.36",
-        "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.36/CadBridge-Setup.zip",
-        "changelog": "Cache-hit Skipped++ branches across STEP / Thumb / PDF / DXF / 3D PDF / STEP co-save / V5 STEP now also add the on-disk filename to result.GeneratedFiles[type]. Pre-1.8.36 only fresh-writes appended, which caused frontend's post-Generate checkGenerated to fall back to BOM-derived expected names on re-runs and undercount by 2 when sub-components were written under baseName fallback. result.GeneratedFiles[type] semantics now mean 'present on disk after this run', not 'freshly written this run'. Pairs with backend 1.1.6 -- bumps land together. Mirrors V5DrawingsGenerator cache-hit precedent (already correct since 2026-05-10).",
-        "sha256": "c9da61c101a5a15e0063acce13fd1869722acc5ede28b1a40e8b2e5753ca2deb"
+        "version": "1.8.43",
+        "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.43/CadBridge-Setup.zip",
+        "changelog": "Architectural simplification: EngItem-driven OpenDoc7 is now the sole primary doc-resolution strategy in GenerateOutputsOnSta -- runs for every BOM item instead of being a fallback. SW handles already-open docs idempotently and serves the latest rep automatically because EngItem ids are stable cross-rep (only 3DShape ids rep-version). Eliminates the rep-drift problem class that motivated the prior three-stage lookup. swDocByPlmid index removed entirely (empirically dead on rep-drift tenants -- 23/23 items across PIN-000081 + PIN-000084 resolved via EngItemId, zero strict-PLMID hits). swDocByFilename retained as defensive fallback. ~3s wall-clock overhead per 12-item BOM vs. prior near-zero lookup; acceptable for single-strategy correctness.",
+        "sha256": "cffe9eb2a1586238209db7e76f82dd22813a2378330fd65649667f57de6f71ce"
     }
 }
