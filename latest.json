@@ -1,9 +1,9 @@
 {
     "schemaVersion": 2,
     "backend": {
-        "version": "1.1.6",
+        "version": "1.1.7",
         "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-        "changelog": "Generate UI counts (STEP/3DPDF/THUMB) now report the true on-disk state on re-runs instead of undercounting by sub-component files written under baseName fallback. Three-layer fix: frontend collectItemInfo synthesises {name}.SLDPRT/SLDASM fallback keys for itemInfoMap so the agent's platform-key lookup hits when the _cadFilename hint is null; SW post-Generate refresh now passes expectedPdf3D + sets genStatus.pdf3d (V5 path already did this -- SW path was the inconsistency); agent-side cache-hit branches across STEP / Thumb / PDF / DXF / 3D PDF / co-save STEP / V5 STEP now add the on-disk filename to result.GeneratedFiles[*]. result.GeneratedFiles[*] semantics shift from 'freshly written this run' to 'present on disk after this run' (numeric result.Generated counter unchanged). Requires CadBridge 1.8.36 -- bumps land together. Also tightens the Settings -> Telemetry card: disclosure paragraph moves into the toggle's hover tooltip; last-sent + install-id collapse to a single row.",
+        "changelog": "On-demand CadBridge ZIP fetch from manifest URL: new CadBridgeInstallerCache service resolves the installer ZIP from the manifest's cadBridge.downloadUrl (public GitHub Release) on demand, verified against manifest sha256, cached under the app_data volume at /app/data/cadbridge-cache/{sha256}.zip. /api/downloads/CadBridge-Setup.zip now tries the cache first (auto-refresh on every CadBridge release), then falls back to the configured bind-mount path, then the repo layout. Eliminates the manual `scp CadBridge-Setup.zip` step gateway operators previously had to run after every CadBridge release. Concurrent workstation requests collapse to a single GitHub fetch via a SemaphoreSlim. Cache keyed by sha256 so multiple versions coexist (rollback-friendly). Sub-second cache hits after the initial download. Pairs with CadBridge 1.8.43 but works for any future CadBridge bump without further server work.",
         "sha256": null
     },
     "cadBridge": {
