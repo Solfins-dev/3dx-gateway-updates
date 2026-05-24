@@ -1,9 +1,9 @@
 {
     "schemaVersion": 2,
     "backend": {
-        "version": "1.1.8",
+        "version": "1.1.9",
         "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-        "changelog": "Apply Update post-restart now navigates to /login instead of reloading the previous page. Container recreate kills the ASP.NET in-memory session state and 3DPassport auth cookies, so the user has to log back in regardless -- the old reload() dropped them on a stale dashboard that 401'd on the next authenticated API call. New behaviour drops them on the login screen where re-authentication is the expected next step. No backend source change; this release is a frontend rebundle of the existing 1.1.7 backend with the useVersion.ts fix.",
+        "changelog": "No-op version bump to verify the Apply Update /login redirect fix shipped in 1.1.8. The 1.1.8 release contained the useVersion.ts fix but couldn't demonstrate it on the 1.1.7 -> 1.1.8 click itself, because the OLD bundle (still loaded in the browser at click time) controlled the post-apply flow. On 1.1.8 -> 1.1.9, the NEW (post-fix) bundle is already active, so 'done' stage will navigate to /login instead of reloading the previous page. No other backend or frontend changes.",
         "sha256": null
     },
     "cadBridge": {
