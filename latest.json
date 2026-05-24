@@ -1,9 +1,9 @@
 {
     "schemaVersion": 2,
     "backend": {
-        "version": "1.1.7",
+        "version": "1.1.8",
         "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-        "changelog": "On-demand CadBridge ZIP fetch from manifest URL: new CadBridgeInstallerCache service resolves the installer ZIP from the manifest's cadBridge.downloadUrl (public GitHub Release) on demand, verified against manifest sha256, cached under the app_data volume at /app/data/cadbridge-cache/{sha256}.zip. /api/downloads/CadBridge-Setup.zip now tries the cache first (auto-refresh on every CadBridge release), then falls back to the configured bind-mount path, then the repo layout. Eliminates the manual `scp CadBridge-Setup.zip` step gateway operators previously had to run after every CadBridge release. Concurrent workstation requests collapse to a single GitHub fetch via a SemaphoreSlim. Cache keyed by sha256 so multiple versions coexist (rollback-friendly). Sub-second cache hits after the initial download. Pairs with CadBridge 1.8.43 but works for any future CadBridge bump without further server work.",
+        "changelog": "Apply Update post-restart now navigates to /login instead of reloading the previous page. Container recreate kills the ASP.NET in-memory session state and 3DPassport auth cookies, so the user has to log back in regardless -- the old reload() dropped them on a stale dashboard that 401'd on the next authenticated API call. New behaviour drops them on the login screen where re-authentication is the expected next step. No backend source change; this release is a frontend rebundle of the existing 1.1.7 backend with the useVersion.ts fix.",
         "sha256": null
     },
     "cadBridge": {
