@@ -1,15 +1,15 @@
 {
-    "schemaVersion": 2,
-    "backend": {
-        "version": "1.1.9",
-        "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-        "changelog": "No-op version bump to verify the Apply Update /login redirect fix shipped in 1.1.8. The 1.1.8 release contained the useVersion.ts fix but couldn't demonstrate it on the 1.1.7 -> 1.1.8 click itself, because the OLD bundle (still loaded in the browser at click time) controlled the post-apply flow. On 1.1.8 -> 1.1.9, the NEW (post-fix) bundle is already active, so 'done' stage will navigate to /login instead of reloading the previous page. No other backend or frontend changes.",
-        "sha256": null
-    },
-    "cadBridge": {
-        "version": "1.8.44",
-        "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.44/CadBridge-Setup.zip",
-        "changelog": "Fix swMode mis-detection on SOLIDWORKS Connector workstations that also have a bare SOLIDWORKS 3DEXPERIENCE R20YYx launcher-shim folder (CATSTART + SWXDesktopLauncher installed by the 3DX Connector add-in, no SLDWORKS.exe). Before 1.8.44 the agent flipped registry-confirmed `connector` mode to `connected` based on folder existence alone, and the launcher selector then picked SWXDesktopLauncher.exe -> 'SOLIDWORKS Design failed to launch. Application not found.' Fix: override now requires a real SLDWORKS.exe on disk. Bonus: new FindSwClassicInstallRoot() walks registry first (HKLM\SOFTWARE\SolidWorks\SOLIDWORKS\Setup\SolidWorks Folder + multi-version SOLIDWORKS YYYY\Setup + WOW6432Node mirrors), then globs C:\Program Files\SOLIDWORKS Corp*\SOLIDWORKS\sldworks.exe so SW 2024+ year-in-Corp installs (Corp 2025, Corp 2026, ...) work without code changes, then legacy SolidWorks 20XX\. No hardcoded years anywhere.",
-        "sha256": "e284860614470aa9c4018983ae31414058b68c8b576d9c4e6e6d6879b9258b81"
-    }
+  "schemaVersion": 2,
+  "backend": {
+    "version": "1.1.9",
+    "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
+    "changelog": "No-op version bump to verify the Apply Update /login redirect fix shipped in 1.1.8. The 1.1.8 release contained the useVersion.ts fix but couldn't demonstrate it on the 1.1.7 -> 1.1.8 click itself, because the OLD bundle (still loaded in the browser at click time) controlled the post-apply flow. On 1.1.8 -> 1.1.9, the NEW (post-fix) bundle is already active, so 'done' stage will navigate to /login instead of reloading the previous page. No other backend or frontend changes.",
+    "sha256": null
+  },
+  "cadBridge": {
+    "version": "1.8.44",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.44/CadBridge-Setup.zip",
+    "changelog": "Fix swMode mis-detection on SOLIDWORKS Connector workstations that also have a bare SOLIDWORKS 3DEXPERIENCE R20YYx launcher-shim folder (CATSTART + SWXDesktopLauncher installed by the 3DX Connector add-in, no SLDWORKS.exe). Before 1.8.44 the agent flipped registry-confirmed connector mode to connected based on folder existence alone, and the launcher selector then picked SWXDesktopLauncher.exe -> 'SOLIDWORKS Design failed to launch. Application not found.' Fix: override now requires a real SLDWORKS.exe on disk. Bonus: new FindSwClassicInstallRoot() walks registry first (HKLM SolidWorks Setup + multi-version mirrors), then globs SOLIDWORKS Corp*/SOLIDWORKS/sldworks.exe so SW 2024+ year-in-Corp installs (Corp 2025, Corp 2026, ...) work without code changes, then legacy SolidWorks 20XX. No hardcoded years anywhere.",
+    "sha256": "e284860614470aa9c4018983ae31414058b68c8b576d9c4e6e6d6879b9258b81"
+  }
 }
