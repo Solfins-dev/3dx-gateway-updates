@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.13",
+    "version": "1.1.14",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "ADR-019 source-cache freshness fix complete (Stages A + B + C). Generate now detects when a BOM item or drawing has been updated on 3DEXPERIENCE within the same revision letter (new geometry iteration, attribute change, lifecycle promotion) by tracking the platform cestamp / modified per item. Stale items get their SW source closed and reopened so SOLIDWORKS Connector pulls the latest rep before SaveAs3 writes the derivative. First Generate per BOM populates the per-tenant stamp cache; subsequent runs do nothing for unchanged items (zero cost) and just-the-changed-items for the rest. Force Regenerate semantic widened: ON now also force-refreshes every BOM source from the platform (not just regenerate cached outputs). Workstation must be on CadBridge 1.8.45+ for the agent close-pass to actually run; older agents see the new fields absent and behave as before.",
+    "changelog": "Docs + i18n catch-up after the ADR-019 source-cache-freshness stack landed earlier today (1.1.12 + CadBridge 1.8.45 + 1.1.13). No code behavior change. The Force Regenerate toggle tooltip now correctly describes both clauses: OFF auto-detects cestamp changes on 3DEXPERIENCE and refreshes only the items that actually changed; ON forces close+reopen of every BOM source (parts + assemblies + drawings) so SOLIDWORKS Connector pulls the latest rep before SaveAs3 writes the derivative. Wiki + glossary + tech spec updated in the same commit. Client-side end-to-end test passed today on the actual customer BOM.",
     "sha256": null
   },
   "cadBridge": {
