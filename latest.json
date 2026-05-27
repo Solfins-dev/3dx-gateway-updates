@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.11",
+    "version": "1.1.12",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Copy ID chip now renders a proper selectable hover panel (modeled on the existing CAD Bridge status pill in the session bar) instead of relying on the native browser tooltip that disappears the moment the cursor approaches it. Hover the chip -> a small panel opens next to it with the full id as monospaced selectable text and a one-click Copy button; panel stays open for 400ms after the cursor leaves so you can drag into it. The chip itself still copies on click. The chip also moved from the cramped 110px EIN cell into the Title cell where it is no longer clipped. The BOM root header next to the BOM title gets the same chip so you can grab the root EngItem id without scrolling into the tree.",
+    "changelog": "ADR-019 Stage A -- source-cache freshness plumbing. Backend now persists 3DX cestamp (opaque change-event-stamp) and modified (US locale date) per BOM item and per drawing, so future Generate runs can detect stale local SW caches without an extra round-trip. No user-visible behavior change yet -- Stage B (CadBridge 1.8.45 close+reopen for stale items) and Stage C (frontend stale-set + Force Regenerate widened to global force-refresh) follow.",
     "sha256": null
   },
   "cadBridge": {
