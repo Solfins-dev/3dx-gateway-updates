@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.10",
+    "version": "1.1.11",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "BomTree UI polish: per-row Copy ID chip lets you grab 3DX EngItem / drawing ids straight from the BOM Tree when Settings -> Show debug IDs is ON (click the small chip next to a row, paste anywhere). Partial Download decoupled from category master toggles: enabling Partial Download alone now shows per-row Download buttons on DOs / Attachments / Specifications, regardless of whether you also include those categories in batch flows (Download All / ERP Sync). No backend logic changes.",
+    "changelog": "Copy ID chip now renders a proper selectable hover panel (modeled on the existing CAD Bridge status pill in the session bar) instead of relying on the native browser tooltip that disappears the moment the cursor approaches it. Hover the chip -> a small panel opens next to it with the full id as monospaced selectable text and a one-click Copy button; panel stays open for 400ms after the cursor leaves so you can drag into it. The chip itself still copies on click. The chip also moved from the cramped 110px EIN cell into the Title cell where it is no longer clipped. The BOM root header next to the BOM title gets the same chip so you can grab the root EngItem id without scrolling into the tree.",
     "sha256": null
   },
   "cadBridge": {
