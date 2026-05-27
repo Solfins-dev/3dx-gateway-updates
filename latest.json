@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.12",
+    "version": "1.1.13",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "ADR-019 Stage A -- source-cache freshness plumbing. Backend now persists 3DX cestamp (opaque change-event-stamp) and modified (US locale date) per BOM item and per drawing, so future Generate runs can detect stale local SW caches without an extra round-trip. No user-visible behavior change yet -- Stage B (CadBridge 1.8.45 close+reopen for stale items) and Stage C (frontend stale-set + Force Regenerate widened to global force-refresh) follow.",
+    "changelog": "ADR-019 source-cache freshness fix complete (Stages A + B + C). Generate now detects when a BOM item or drawing has been updated on 3DEXPERIENCE within the same revision letter (new geometry iteration, attribute change, lifecycle promotion) by tracking the platform cestamp / modified per item. Stale items get their SW source closed and reopened so SOLIDWORKS Connector pulls the latest rep before SaveAs3 writes the derivative. First Generate per BOM populates the per-tenant stamp cache; subsequent runs do nothing for unchanged items (zero cost) and just-the-changed-items for the rest. Force Regenerate semantic widened: ON now also force-refreshes every BOM source from the platform (not just regenerate cached outputs). Workstation must be on CadBridge 1.8.45+ for the agent close-pass to actually run; older agents see the new fields absent and behave as before.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.44",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.44/CadBridge-Setup.zip",
-    "changelog": "Fix swMode mis-detection on SOLIDWORKS Connector workstations that also have a bare SOLIDWORKS 3DEXPERIENCE R20YYx launcher-shim folder (CATSTART + SWXDesktopLauncher installed by the 3DX Connector add-in, no SLDWORKS.exe). Before 1.8.44 the agent flipped registry-confirmed connector mode to connected based on folder existence alone, and the launcher selector then picked SWXDesktopLauncher.exe -> SOLIDWORKS Design failed to launch. Application not found. Fix: override now requires a real SLDWORKS.exe on disk. Bonus: new FindSwClassicInstallRoot walks registry first (HKLM SolidWorks Setup + multi-version mirrors), then globs SOLIDWORKS Corp*/SOLIDWORKS/sldworks.exe so SW 2024+ year-in-Corp installs (Corp 2025, Corp 2026, ...) work without code changes, then legacy SolidWorks 20XX. No hardcoded years anywhere.",
-    "sha256": "e284860614470aa9c4018983ae31414058b68c8b576d9c4e6e6d6879b9258b81"
+    "version": "1.8.45",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.45/CadBridge-Setup.zip",
+    "changelog": "ADR-019 Stage B -- agent honors StaleItems[] (EngItem PLMIDs) and StaleDrawingPids[] sent by frontend (1.1.13+). At Generate start, before the BOM-driven OpenDoc7-per-item loop, the agent enumerates open SW docs and closes any whose GetPLMID() matches the stale set. The subsequent EngItem-OpenDoc7 path (1.8.43+) then pulls the latest rep from the platform instead of returning the stale in-memory handle. New Stale bool on PreCacheDrawingItem skips the cached-.SLDDRW SwDm short-circuit and forces OpenDoc7. Backward compatible: older frontends sending empty / null lists trigger no close-pass.",
+    "sha256": "c3670647a775ace34aac674fceb4fac78433960ee0408cea8bac6938867664f5"
   }
 }
