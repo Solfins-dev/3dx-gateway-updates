@@ -3,13 +3,13 @@
   "backend": {
     "version": "1.1.17",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Polish: (1) CAD Bridge status pill + transient SW status moved out of the main action toolbar into a dedicated thin row below it, so warning chips listing many docs get full row width and the toolbar stays compact. (2) Benign status chips ('Generated this run: ...', 'Connected -- N CAD files') auto-hide after 15s; warning chips (amber + warning icon, e.g. 'Unsaved changes in SolidWorks: ...') persist until the next message replaces them. (3) The CopyIdChip button added in 1.1.10/1.1.11 is removed; the EIN cell + drawing rows + BOM root header now have a hover panel showing EIN + Name + Title + id (selectable monospaced) + Copy id button when Settings -> Show debug IDs is ON, matching the SessionBar CadBridgeIndicator pattern.",
+    "changelog": "Polish: (1) CAD Bridge status pill + transient SW status moved out of the main action toolbar into a dedicated thin row below it. (2) Benign status chips auto-hide after 15s; warning chips persist until replaced. (3) The CopyIdChip button added in 1.1.10/1.1.11 is removed; the EIN cell + drawing rows + BOM root header now have a hover panel showing EIN + Name + Title + id with Copy id button when Settings -> Show debug IDs is ON.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.45",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.45/CadBridge-Setup.zip",
-    "changelog": "ADR-019 Stage B -- agent honors StaleItems[] (EngItem PLMIDs) and StaleDrawingPids[] sent by frontend (1.1.13+). At Generate start, before the BOM-driven OpenDoc7-per-item loop, the agent enumerates open SW docs and closes any whose GetPLMID() matches the stale set. The subsequent EngItem-OpenDoc7 path (1.8.43+) then pulls the latest rep from the platform instead of returning the stale in-memory handle. New Stale bool on PreCacheDrawingItem skips the cached-.SLDDRW SwDm short-circuit and forces OpenDoc7. Backward compatible: older frontends sending empty / null lists trigger no close-pass.",
-    "sha256": "c3670647a775ace34aac674fceb4fac78433960ee0408cea8bac6938867664f5"
+    "version": "1.8.46",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.46/CadBridge-Setup.zip",
+    "changelog": "RefreshCache (engage path) primary open is now by EngItem PLMID instead of by filename. Previously the agent's ActivateByNameAndWait hardcoded the .SLDASM extension + docType==2 swDocASSEMBLY in three retry stages, so a Part-as-root BOM (PIN-001628 on disk: Shaft_DL_&.SLDPRT) always failed with 'Cannot open assembly PIN-001628 in SolidWorks' -- 30+ seconds of wasted retries even when SW already had the part loaded via the parallel openFrom3DX call. Same failure applied to 3DX-Connector cached docs whose opaque DOC-XXXXX.SLDPRT disk filename never matched the BOM title. Fix: new OpenRootByPlmidAndWait helper takes precedence when the frontend supplies assemblyId (it always does). Uses OpenDoc7 + PLMObjectSpecification.PLMID with DocumentType=1 then =2 retry, mirroring the BOM-driven loop's TryOpenByPlmid mechanic (1.8.43+). Pre-scans open docs so an already-loaded root is a no-op (no OpenDoc7 round-trip). Legacy filename-based path stays as fallback for older frontends. Workstation Apply Update needed.",
+    "sha256": "d8fe2e1608f5d7275c036f1d8f7005d2dc017c529b198f0e8a8a0c162068fed7"
   }
 }
