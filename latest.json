@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.14",
+    "version": "1.1.15",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Docs + i18n catch-up after the ADR-019 source-cache-freshness stack landed earlier today (1.1.12 + CadBridge 1.8.45 + 1.1.13). No code behavior change. The Force Regenerate toggle tooltip now correctly describes both clauses: OFF auto-detects cestamp changes on 3DEXPERIENCE and refreshes only the items that actually changed; ON forces close+reopen of every BOM source (parts + assemblies + drawings) so SOLIDWORKS Connector pulls the latest rep before SaveAs3 writes the derivative. Wiki + glossary + tech spec updated in the same commit. Client-side end-to-end test passed today on the actual customer BOM.",
+    "changelog": "Fix: Generate now works for Part-as-root BOMs (e.g. a Part opened directly, not as part of an assembly). Pre-1.1.15, every Generate click on a Part-as-root BOM stalled for 3 minutes then aborted with SolidWorks is still loading... and produced no output files -- the frontend's auto-open gate was hard-coded to wait for an assembly that could never appear when the BOM root was a Part. Assembly-as-root BOMs unaffected.",
     "sha256": null
   },
   "cadBridge": {
