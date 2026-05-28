@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.16",
+    "version": "1.1.17",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Two UX/dev fixes. (1) swStatusMsg engage/generate warnings (Unsaved changes, Other documents open, Wrong assembly active, Wrong tenant) now surface in the main toolbar with an amber chip + warning icon, not hidden inside the collapsed Columns dropdown -- bit today on PIN-001628 testing where Generate silently produced 0 files because two leftover SW parts had unsaved changes, but the explanatory message was invisible. (2) SPA Cache-Control split: Vite-hashed /assets/* gets max-age=1y immutable; index.html gets no-store. After Apply Update, the next navigation refetches index.html, references the new bundle hash, and pulls the new bundle -- NO hard-refresh required from the user.",
+    "changelog": "Polish: (1) CAD Bridge status pill + transient SW status moved out of the main action toolbar into a dedicated thin row below it, so warning chips listing many docs get full row width and the toolbar stays compact. (2) Benign status chips ('Generated this run: ...', 'Connected -- N CAD files') auto-hide after 15s; warning chips (amber + warning icon, e.g. 'Unsaved changes in SolidWorks: ...') persist until the next message replaces them. (3) The CopyIdChip button added in 1.1.10/1.1.11 is removed; the EIN cell + drawing rows + BOM root header now have a hover panel showing EIN + Name + Title + id (selectable monospaced) + Copy id button when Settings -> Show debug IDs is ON, matching the SessionBar CadBridgeIndicator pattern.",
     "sha256": null
   },
   "cadBridge": {
