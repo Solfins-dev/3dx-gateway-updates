@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.15",
+    "version": "1.1.16",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Fix: Generate now works for Part-as-root BOMs (e.g. a Part opened directly, not as part of an assembly). Pre-1.1.15, every Generate click on a Part-as-root BOM stalled for 3 minutes then aborted with SolidWorks is still loading... and produced no output files -- the frontend's auto-open gate was hard-coded to wait for an assembly that could never appear when the BOM root was a Part. Assembly-as-root BOMs unaffected.",
+    "changelog": "Two UX/dev fixes. (1) swStatusMsg engage/generate warnings (Unsaved changes, Other documents open, Wrong assembly active, Wrong tenant) now surface in the main toolbar with an amber chip + warning icon, not hidden inside the collapsed Columns dropdown -- bit today on PIN-001628 testing where Generate silently produced 0 files because two leftover SW parts had unsaved changes, but the explanatory message was invisible. (2) SPA Cache-Control split: Vite-hashed /assets/* gets max-age=1y immutable; index.html gets no-store. After Apply Update, the next navigation refetches index.html, references the new bundle hash, and pulls the new bundle -- NO hard-refresh required from the user.",
     "sha256": null
   },
   "cadBridge": {
