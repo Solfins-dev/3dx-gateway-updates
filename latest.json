@@ -3,13 +3,13 @@
   "backend": {
     "version": "1.1.19",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Pre-Generate close-foreign-docs prompt now runs BEFORE attempting to open the BOM root assembly, so leftover non-BOM documents that were blocking SolidWorks Connector's fresh root open get cleared first. Workstation Apply Update for CadBridge 1.8.49 strongly recommended to benefit from the new STEP+3DPDF foreign-docs fix and upfront non-BOM doc close (status row shows 'Closed N non-BOM document(s) before Generate' at the start of every run when applicable).",
+    "changelog": "Pre-Generate close-foreign-docs prompt now runs BEFORE attempting to open the BOM root assembly, so leftover non-BOM documents that were blocking SolidWorks Connector's fresh root open get cleared first. Workstation Apply Update for CadBridge 1.8.50 strongly recommended -- the upfront non-BOM doc close is now reliable end-to-end (1.8.49 left ActiveDoc null after multi-close, which 1.8.50 fixes by force-activating a remaining candidate before the orchestrator continues).",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.49",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.49/CadBridge-Setup.zip",
-    "changelog": "Moves the foreign-doc force-close pass from the 3D PDF post-loop (1.8.48) to the very start of Generate. Pre-1.8.49 the close fired late -- after STEP / PDF / Thumb completed in the main loop -- so users saw foreign documents stay open through most of the run and only get closed near the end. Now the close fires immediately when Generate starts; status row shows 'Closed N non-BOM document(s) before Generate' before any output is produced. Match logic unchanged (filename-only, case-insensitive, dirty docs skipped and titles logged). Side benefit: the BOM main loop's TryOpenByPlmid runs on a leaner SW doc list, which eliminates the activate-doc-race class of bug that 1.8.48 originally fixed by leaving the Pdf3dGenerator pre-cleanup as a belt-and-braces safety net.",
-    "sha256": "b5de5f514251e4924632941aec6d64398b8fe91a1fb8569e4fdc03b1614e308a"
+    "version": "1.8.50",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.50/CadBridge-Setup.zip",
+    "changelog": "Fixes 'No active document in SolidWorks' error after the upfront foreign-doc close. When the previously-active doc was one of the closed foreign docs, SolidWorks Connector did not auto-activate the next doc reliably -- leaving ActiveDoc null and the orchestrator's title-based activeDoc fallback unable to recover (especially on Part-as-root BOMs where the BOM title differs from the disk filename). 1.8.50 detects ActiveDoc=null after the close pass and ActivateDoc3 on the first remaining open document (guaranteed to be a candidate since the pre-cleanup only closes non-candidates). The orchestrator's ActiveDoc readback then sees a non-null handle and Generate proceeds.",
+    "sha256": "f752de23af92dc470a2389c6cb634f7e90f4dd1f6d2b78c2aff75c7dab3faf8c"
   }
 }
