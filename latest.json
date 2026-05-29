@@ -3,13 +3,13 @@
   "backend": {
     "version": "1.1.19",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Pre-Generate close-foreign-docs prompt now runs BEFORE attempting to open the BOM root assembly, so leftover non-BOM documents that were blocking SolidWorks Connector's fresh root open get cleared first. Workstation Apply Update for CadBridge 1.8.51 strongly recommended.",
+    "changelog": "Pre-Generate close-foreign-docs prompt now runs BEFORE attempting to open the BOM root assembly. Workstation Apply Update for CadBridge 1.8.53 strongly recommended -- BOM root no longer gets closed and reopened in the 3DPDF post-loop on Part-as-root or single-candidate Assembly-as-root BOMs.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.51",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.51/CadBridge-Setup.zip",
-    "changelog": "Fixes 'No active document in SolidWorks' that persisted in 1.8.50. Two root causes 1.8.50 missed: (1) GetProp(ActiveDoc) right after CloseDoc can return a stale COM reference (ROT update lags the close call), so the 1.8.50 activate gate skipped the real fix; (2) if pre-cleanup closed everything (BOM root wasn't open or close pass over-matched), nothing remained to activate -- 1.8.50 had no recovery path. This ship: (a) always force-activate the first remaining open doc and verify by reading ActiveDoc title back; (b) last-resort fallback opens the BOM root via TryOpenByPlmid using request.ItemInfoMap's first EngItemId entry when nothing remained; (c) logs the candidate filename set and closed titles so any future surprise is correlatable from the log without guesswork.",
-    "sha256": "bab8354e7c1a788ae0e7ee16e5738585a6ce7b8b0a9e843de60167b1666eac7c"
+    "version": "1.8.53",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.53/CadBridge-Setup.zip",
+    "changelog": "Pdf3dGenerator post-loop now short-circuits the close-parent / reopen-standalone dance when the single 3DPDF candidate IS already the active BOM root -- whether Part-as-root (1.8.52) or Assembly-as-root with only the assembly itself as candidate (1.8.53). SaveAs3 + ExportAs3D=true on the already-open handle captures the doc view directly; no reason to close + reopen a doc that's already a standalone top-level. Saves ~3 OpenDoc7 + 1 CloseDoc per Generate run on the common Part-as-root case (visible as snappier 3DPDF phase wall-clock). Multi-candidate Assembly-as-root flows still go through the legacy close-reopen because sub-component candidates need it for ExportAs3D to capture per-part view (ADR-013 constraint). Defensive: any exception in the short-circuit falls through to the legacy flow so the existing path stays correct.",
+    "sha256": "03475a8e4bdc56cb470a67f2959d084d5344d379311623636f08ba784ed6c66d"
   }
 }
