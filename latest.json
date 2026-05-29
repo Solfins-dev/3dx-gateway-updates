@@ -3,13 +3,13 @@
   "backend": {
     "version": "1.1.19",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Pre-Generate close-foreign-docs prompt now runs BEFORE attempting to open the BOM root assembly, so leftover non-BOM documents that were blocking SolidWorks Connector's fresh root open get cleared first. Workstation Apply Update for CadBridge 1.8.50 strongly recommended -- the upfront non-BOM doc close is now reliable end-to-end (1.8.49 left ActiveDoc null after multi-close, which 1.8.50 fixes by force-activating a remaining candidate before the orchestrator continues).",
+    "changelog": "Pre-Generate close-foreign-docs prompt now runs BEFORE attempting to open the BOM root assembly, so leftover non-BOM documents that were blocking SolidWorks Connector's fresh root open get cleared first. Workstation Apply Update for CadBridge 1.8.51 strongly recommended.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.50",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.50/CadBridge-Setup.zip",
-    "changelog": "Fixes 'No active document in SolidWorks' error after the upfront foreign-doc close. When the previously-active doc was one of the closed foreign docs, SolidWorks Connector did not auto-activate the next doc reliably -- leaving ActiveDoc null and the orchestrator's title-based activeDoc fallback unable to recover (especially on Part-as-root BOMs where the BOM title differs from the disk filename). 1.8.50 detects ActiveDoc=null after the close pass and ActivateDoc3 on the first remaining open document (guaranteed to be a candidate since the pre-cleanup only closes non-candidates). The orchestrator's ActiveDoc readback then sees a non-null handle and Generate proceeds.",
-    "sha256": "f752de23af92dc470a2389c6cb634f7e90f4dd1f6d2b78c2aff75c7dab3faf8c"
+    "version": "1.8.51",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.51/CadBridge-Setup.zip",
+    "changelog": "Fixes 'No active document in SolidWorks' that persisted in 1.8.50. Two root causes 1.8.50 missed: (1) GetProp(ActiveDoc) right after CloseDoc can return a stale COM reference (ROT update lags the close call), so the 1.8.50 activate gate skipped the real fix; (2) if pre-cleanup closed everything (BOM root wasn't open or close pass over-matched), nothing remained to activate -- 1.8.50 had no recovery path. This ship: (a) always force-activate the first remaining open doc and verify by reading ActiveDoc title back; (b) last-resort fallback opens the BOM root via TryOpenByPlmid using request.ItemInfoMap's first EngItemId entry when nothing remained; (c) logs the candidate filename set and closed titles so any future surprise is correlatable from the log without guesswork.",
+    "sha256": "bab8354e7c1a788ae0e7ee16e5738585a6ce7b8b0a9e843de60167b1666eac7c"
   }
 }
