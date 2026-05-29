@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.17",
+    "version": "1.1.18",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Polish: (1) CAD Bridge status pill + transient SW status moved out of the main action toolbar into a dedicated thin row below it. (2) Benign status chips auto-hide after 15s; warning chips persist until replaced. (3) The CopyIdChip button added in 1.1.10/1.1.11 is removed; the EIN cell + drawing rows + BOM root header now have a hover panel showing EIN + Name + Title + id with Copy id button when Settings -> Show debug IDs is ON.",
+    "changelog": "Pre-Generate prompt for closing non-BOM SolidWorks documents. When the preflight finds 'other' (non-BOM) documents open AND none have unsaved changes, the BOM Explorer now shows a modal listing them with a Close / Cancel choice instead of the previous 'close them manually, then click again' abort. Click Close -> agent closes those documents by PLMID -> Generate continues immediately. Click Cancel -> existing abort path. If any open document has unsaved changes, the existing 'Unsaved changes in SolidWorks: X, Y, Z. Save (commit to 3DX) or discard the changes' warning still fires first; the auto-close prompt only appears when every non-BOM doc is clean. Combines with CadBridge 1.8.47 close-docs endpoint. Workstation Apply Update needed for CadBridge 1.8.47 to benefit from the auto-close half.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.46",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.46/CadBridge-Setup.zip",
-    "changelog": "RefreshCache (engage path) primary open is now by EngItem PLMID instead of by filename. Previously the agent's ActivateByNameAndWait hardcoded the .SLDASM extension + docType==2 swDocASSEMBLY in three retry stages, so a Part-as-root BOM (PIN-001628 on disk: Shaft_DL_&.SLDPRT) always failed with 'Cannot open assembly PIN-001628 in SolidWorks' -- 30+ seconds of wasted retries even when SW already had the part loaded via the parallel openFrom3DX call. Same failure applied to 3DX-Connector cached docs whose opaque DOC-XXXXX.SLDPRT disk filename never matched the BOM title. Fix: new OpenRootByPlmidAndWait helper takes precedence when the frontend supplies assemblyId (it always does). Uses OpenDoc7 + PLMObjectSpecification.PLMID with DocumentType=1 then =2 retry, mirroring the BOM-driven loop's TryOpenByPlmid mechanic (1.8.43+). Pre-scans open docs so an already-loaded root is a no-op (no OpenDoc7 round-trip). Legacy filename-based path stays as fallback for older frontends. Workstation Apply Update needed.",
-    "sha256": "d8fe2e1608f5d7275c036f1d8f7005d2dc017c529b198f0e8a8a0c162068fed7"
+    "version": "1.8.47",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.47/CadBridge-Setup.zip",
+    "changelog": "New /api/cadbridge/close-docs endpoint accepts a PLMID list and closes those documents in SolidWorks via the IModelDocExtension.GetPLMID() match -- replaces backend 1.1.18 frontend's previous 'wait for user to manually close non-BOM docs' step with a one-click prompt. Defensive: agent re-reads GetSaveFlag right before CloseDoc(title) and skips any document that turned dirty between modal render and confirm (reason=modified). Matching is case-insensitive uppercased to align with the frontend's uppercase PLMID convention. Backwards-compatible: older frontends without the prompt continue working through the unchanged CloseAllDocuments path.",
+    "sha256": "3db5762144db82487c3f69e5b4ba7368b230c1b52d59ea3db420a86cb59eeadb"
   }
 }
