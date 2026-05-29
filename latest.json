@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.18",
+    "version": "1.1.19",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Pre-Generate prompt for closing non-BOM SolidWorks documents. When the preflight finds 'other' (non-BOM) documents open AND none have unsaved changes, the BOM Explorer now shows a modal listing them with a Close / Cancel choice instead of the previous 'close them manually, then click again' abort. Click Close -> agent closes those documents by PLMID -> Generate continues immediately. Click Cancel -> existing abort path. If any open document has unsaved changes, the existing 'Unsaved changes in SolidWorks: X, Y, Z. Save (commit to 3DX) or discard the changes' warning still fires first; the auto-close prompt only appears when every non-BOM doc is clean. Combines with CadBridge 1.8.47 close-docs endpoint. Workstation Apply Update needed for CadBridge 1.8.47 to benefit from the auto-close half.",
+    "changelog": "Pre-Generate close-foreign-docs prompt now runs BEFORE attempting to open the BOM root assembly, so leftover non-BOM documents that were blocking SolidWorks Connector's fresh root open get cleared first. 1.1.18 placed the prompt only in the post-engage recheck branch, which never fired when the root wasn't already loaded -- the root auto-open polled 3 minutes then aborted with 'SolidWorks is still loading...'. Also: the partial-close safety gate no longer falls through to the legacy 'close them manually' abort when even a single library / template doc lacks a 3DX plmId; the closeable subset goes through the modal as before and any leftover unmanaged docs surface via a post-close 'Closed X, Y remain' message. Both fixes applied at both prompt sites for consistency. Workstation Apply Update for CadBridge 1.8.47 still needed to benefit from the auto-close half.",
     "sha256": null
   },
   "cadBridge": {
     "version": "1.8.47",
     "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.47/CadBridge-Setup.zip",
-    "changelog": "New /api/cadbridge/close-docs endpoint accepts a PLMID list and closes those documents in SolidWorks via the IModelDocExtension.GetPLMID() match -- replaces backend 1.1.18 frontend's previous 'wait for user to manually close non-BOM docs' step with a one-click prompt. Defensive: agent re-reads GetSaveFlag right before CloseDoc(title) and skips any document that turned dirty between modal render and confirm (reason=modified). Matching is case-insensitive uppercased to align with the frontend's uppercase PLMID convention. Backwards-compatible: older frontends without the prompt continue working through the unchanged CloseAllDocuments path.",
+    "changelog": "New /api/cadbridge/close-docs endpoint accepts a PLMID list and closes those documents in SolidWorks via the IModelDocExtension.GetPLMID() match -- replaces backend 1.1.18/1.1.19 frontend's previous 'wait for user to manually close non-BOM docs' step with a one-click prompt. Defensive: agent re-reads GetSaveFlag right before CloseDoc(title) and skips any document that turned dirty between modal render and confirm (reason=modified). Matching is case-insensitive uppercased to align with the frontend's uppercase PLMID convention. Backwards-compatible: older frontends without the prompt continue working through the unchanged CloseAllDocuments path.",
     "sha256": "3db5762144db82487c3f69e5b4ba7368b230c1b52d59ea3db420a86cb59eeadb"
   }
 }
