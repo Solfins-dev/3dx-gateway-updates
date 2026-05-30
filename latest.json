@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.53",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.53/CadBridge-Setup.zip",
-    "changelog": "Pdf3dGenerator post-loop now short-circuits the close-parent / reopen-standalone dance when the single 3DPDF candidate IS already the active BOM root -- whether Part-as-root (1.8.52) or Assembly-as-root with only the assembly itself as candidate (1.8.53). SaveAs3 + ExportAs3D=true on the already-open handle captures the doc view directly; no reason to close + reopen a doc that's already a standalone top-level. Saves ~3 OpenDoc7 + 1 CloseDoc per Generate run on the common Part-as-root case (visible as snappier 3DPDF phase wall-clock). Multi-candidate Assembly-as-root flows still go through the legacy close-reopen because sub-component candidates need it for ExportAs3D to capture per-part view (ADR-013 constraint). Defensive: any exception in the short-circuit falls through to the legacy flow so the existing path stays correct.",
-    "sha256": "03475a8e4bdc56cb470a67f2959d084d5344d379311623636f08ba784ed6c66d"
+    "version": "1.8.54",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.54/CadBridge-Setup.zip",
+    "changelog": "Part-as-root-aware active-document setup in the Generate flow. The agent's BOM-root open/activate logic was assembly-only (.SLDASM + assembly document type at every step), so a Part-as-root BOM relied on the frontend's auto-open or the post-cleanup last-resort to leave the right document active. It now infers the root document type (part vs assembly) the same way the web app does and uses a robust open ladder -- activate-if-open, open-from-cache with the correct type, then open-by-platform-id (the reliable path on 3DX-Connector caches). No user-visible behavior change on assemblies; removes a fragile fallback on Part-as-root BOMs. Optional update -- workstations already on 1.8.53 are fine.",
+    "sha256": "b363b44b6a87cf0b9a7976ae27486fab2fd30df37b042192cbf92701ec2ec6a4"
   }
 }
