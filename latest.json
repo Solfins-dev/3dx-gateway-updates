@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.54",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.54/CadBridge-Setup.zip",
-    "changelog": "Part-as-root-aware active-document setup in the Generate flow. The agent's BOM-root open/activate logic was assembly-only (.SLDASM + assembly document type at every step), so a Part-as-root BOM relied on the frontend's auto-open or the post-cleanup last-resort to leave the right document active. It now infers the root document type (part vs assembly) the same way the web app does and uses a robust open ladder -- activate-if-open, open-from-cache with the correct type, then open-by-platform-id (the reliable path on 3DX-Connector caches). No user-visible behavior change on assemblies; removes a fragile fallback on Part-as-root BOMs. Optional update -- workstations already on 1.8.53 are fine.",
-    "sha256": "b363b44b6a87cf0b9a7976ae27486fab2fd30df37b042192cbf92701ec2ec6a4"
+    "version": "1.8.55",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.55/CadBridge-Setup.zip",
+    "changelog": "Adds a per-phase and per-part timing breakdown to the Generate run, surfaced in the Output panel and the agent log file. Diagnostic build ahead of upcoming large-assembly Generate speedups -- it measures where time goes without changing how anything is generated. No behavior change; optional update.",
+    "sha256": "026b408d23d929fcc9a69c31f9a0ccef707ee713370f8d5816782253602e1be4"
   }
 }
