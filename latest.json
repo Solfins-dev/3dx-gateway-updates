@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.19",
+    "version": "1.1.20",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Pre-Generate close-foreign-docs prompt now runs BEFORE attempting to open the BOM root assembly. Workstation Apply Update for CadBridge 1.8.53 strongly recommended -- BOM root no longer gets closed and reopened in the 3DPDF post-loop on Part-as-root or single-candidate Assembly-as-root BOMs.",
+    "changelog": "Generate no longer hard-stops when a large assembly opens with 'unsaved changes' that are really SolidWorks resolving child references to their latest revision on open (not your edits). It now asks for confirmation and generates from the current state -- nothing is saved to 3DEXPERIENCE. Source freshness is unchanged: change-detected items are still refreshed from the platform, and Force Regenerate still refreshes everything. Also fixes the Copy id button in the BOM tree tooltip.",
     "sha256": null
   },
   "cadBridge": {
