@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.59",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.59/CadBridge-Setup.zip",
-    "changelog": "Virtual components now export STEP and 3D PDF. A part that was 'Made Virtual' inside an assembly (stored within its parent rather than as its own file) was being skipped for STEP and 3D PDF, because it has no standalone file to open once the parent assembly is closed for those exports. Generate now resolves it from the persistent local cache copy, so its STEP and 3D PDF are produced like any other part. Thumbnails, drawings (PDF/DXF), and all non-virtual parts are unchanged. Pairs with backend 1.1.24.",
-    "sha256": "4b21680923dea479db6a240a1143222ff64a8a1d605b818b4691259ebe3b5a68"
+    "version": "1.8.60",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.60/CadBridge-Setup.zip",
+    "changelog": "Virtual components (parts 'Made Virtual' inside an assembly) now reliably export STEP and 3D PDF, including on a freshly-downloaded cache. Such a part has no standalone file on the platform, so Generate now produces its outputs from the live copy SolidWorks holds while the parent assembly is open. Also removes a ~20-second stall and two error dialogs that appeared when Generate tried to open a virtual component directly by id. Supersedes 1.8.59; recommended.",
+    "sha256": "9602d21f1abbf16f2ca486fa937a58b7a2cb824181318c4bff32f2aadbbbc92b"
   }
 }
