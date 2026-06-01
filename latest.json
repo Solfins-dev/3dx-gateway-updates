@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.22",
+    "version": "1.1.23",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Generate now asks for a single confirmation when an assembly opens with auto-resolved (unsaved) references and proceeds from the current state, even when SolidWorks or the assembly was closed at the start. The BOM item tooltip (EIN | Name | id, shown when Debug IDs are on) is now selectable so you can copy the id with Ctrl+C -- no separate button. Also: no 502 right after Apply Update (waits for the new backend before redirecting). Source freshness unchanged.",
+    "changelog": "Generate on large assemblies no longer stops with 'close documents not part of this BOM' for the assembly's own deeply-nested sub-assemblies (they are in-use components and could not be closed). Only foreign DRAWINGS are now flagged; extra open sub-assemblies are harmless because Generate iterates the BOM, not whatever is open in SolidWorks. Combined with the earlier 'generate anyway' confirmation, large assemblies with auto-resolved references now generate. Source freshness unchanged.",
     "sha256": null
   },
   "cadBridge": {
