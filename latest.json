@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.20",
+    "version": "1.1.21",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Generate no longer hard-stops when a large assembly opens with 'unsaved changes' that are really SolidWorks resolving child references to their latest revision on open (not your edits). It now asks for confirmation and generates from the current state -- nothing is saved to 3DEXPERIENCE. Source freshness is unchanged: change-detected items are still refreshed from the platform, and Force Regenerate still refreshes everything. Also fixes the Copy id button in the BOM tree tooltip.",
+    "changelog": "Fixes the 'generate anyway' confirmation so it also appears when SolidWorks (or the assembly) was closed and Generate opens it -- previously the engage step waited indefinitely for you to close documents that can't be closed (auto-resolved references). Confirming once now lets Generate proceed. Also: the page no longer shows a 502 right after Apply Update (it waits for the new backend before redirecting), and the BOM tooltip 'Copy id' button copies reliably. Source freshness unchanged.",
     "sha256": null
   },
   "cadBridge": {
