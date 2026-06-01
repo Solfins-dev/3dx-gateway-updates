@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.58",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.58/CadBridge-Setup.zip",
-    "changelog": "Large-assembly stability: Generate no longer keeps every part open at the same time. Previously each component was opened and left open through the run; on very large assemblies (hundreds of parts) this exhausted SolidWorks' resources and crashed it. Each part is now closed right after its outputs are produced, so only one or two are open at a time. Also: if SolidWorks stops responding mid-run, Generate now aborts cleanly with a clear message instead of flooding errors. Strongly recommended for anyone generating large assemblies. Test on a small assembly first.",
-    "sha256": "4b0b6baaeb04c086847fb9711ebc706dde7b72a9bd5c554f4f0497f130e7b32f"
+    "version": "1.8.59",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.59/CadBridge-Setup.zip",
+    "changelog": "Virtual components now export STEP and 3D PDF. A part that was 'Made Virtual' inside an assembly (stored within its parent rather than as its own file) was being skipped for STEP and 3D PDF, because it has no standalone file to open once the parent assembly is closed for those exports. Generate now resolves it from the persistent local cache copy, so its STEP and 3D PDF are produced like any other part. Thumbnails, drawings (PDF/DXF), and all non-virtual parts are unchanged. Pairs with backend 1.1.24.",
+    "sha256": "4b21680923dea479db6a240a1143222ff64a8a1d605b818b4691259ebe3b5a68"
   }
 }
