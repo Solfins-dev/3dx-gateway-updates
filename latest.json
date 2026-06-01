@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.23",
+    "version": "1.1.24",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Generate on large assemblies no longer stops with 'close documents not part of this BOM' for the assembly's own deeply-nested sub-assemblies (they are in-use components and could not be closed). Only foreign DRAWINGS are now flagged; extra open sub-assemblies are harmless because Generate iterates the BOM, not whatever is open in SolidWorks. Combined with the earlier 'generate anyway' confirmation, large assemblies with auto-resolved references now generate. Source freshness unchanged.",
+    "changelog": "The Stop button on the Generate progress bar is now always clickable while a run is in progress, so you can cancel a long or runaway Generate. (Pairs with CadBridge 1.8.58, which stops large assemblies from keeping every part open at once.)",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.57",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.57/CadBridge-Setup.zip",
-    "changelog": "Stability fix: reverts the automatic 'clean session' behaviour added in 1.8.56, which on large assemblies could close and reopen the model, mark documents as changed, and slow Generate down. Generate now behaves exactly as it did in 1.8.55. Recommended update for anyone on 1.8.56. To avoid the revision-conflict dialog on large assemblies, open the assembly into an empty SolidWorks session (close all documents first).",
-    "sha256": "d217176e45320283f96d0e09198b5f5f1062d0428ec1e8f598a46245982155bf"
+    "version": "1.8.58",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.58/CadBridge-Setup.zip",
+    "changelog": "Large-assembly stability: Generate no longer keeps every part open at the same time. Previously each component was opened and left open through the run; on very large assemblies (hundreds of parts) this exhausted SolidWorks' resources and crashed it. Each part is now closed right after its outputs are produced, so only one or two are open at a time. Also: if SolidWorks stops responding mid-run, Generate now aborts cleanly with a clear message instead of flooding errors. Strongly recommended for anyone generating large assemblies. Test on a small assembly first.",
+    "sha256": "4b0b6baaeb04c086847fb9711ebc706dde7b72a9bd5c554f4f0497f130e7b32f"
   }
 }
