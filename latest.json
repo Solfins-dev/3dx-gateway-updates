@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.21",
+    "version": "1.1.22",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Fixes the 'generate anyway' confirmation so it also appears when SolidWorks (or the assembly) was closed and Generate opens it -- previously the engage step waited indefinitely for you to close documents that can't be closed (auto-resolved references). Confirming once now lets Generate proceed. Also: the page no longer shows a 502 right after Apply Update (it waits for the new backend before redirecting), and the BOM tooltip 'Copy id' button copies reliably. Source freshness unchanged.",
+    "changelog": "Generate now asks for a single confirmation when an assembly opens with auto-resolved (unsaved) references and proceeds from the current state, even when SolidWorks or the assembly was closed at the start. The BOM item tooltip (EIN | Name | id, shown when Debug IDs are on) is now selectable so you can copy the id with Ctrl+C -- no separate button. Also: no 502 right after Apply Update (waits for the new backend before redirecting). Source freshness unchanged.",
     "sha256": null
   },
   "cadBridge": {
