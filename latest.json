@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.55",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.55/CadBridge-Setup.zip",
-    "changelog": "Adds a per-phase and per-part timing breakdown to the Generate run, surfaced in the Output panel and the agent log file. Diagnostic build ahead of upcoming large-assembly Generate speedups -- it measures where time goes without changing how anything is generated. No behavior change; optional update.",
-    "sha256": "026b408d23d929fcc9a69c31f9a0ccef707ee713370f8d5816782253602e1be4"
+    "version": "1.8.56",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.56/CadBridge-Setup.zip",
+    "changelog": "Generate now opens the BOM root into a clean SolidWorks session. This eliminates the 'Unable to load revision A.1 of X -- X will use revision B.1 because it is already open in the session' dialog seen on large assemblies, and prevents a stale revision being used for a generated output. Unsaved documents are never closed. Recommended for anyone generating large assemblies.",
+    "sha256": "01fa4664862cad75c77d6927c983341d9daea3905077131d6e5a6c22b934e24c"
   }
 }
