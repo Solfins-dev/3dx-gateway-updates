@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.26",
+    "version": "1.1.27",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "SolidWorks now always starts on the selected BOM's 3DEXPERIENCE tenant. If SolidWorks is already open on a different platform, documents with unsaved changes prompt you to close them, while unmodified documents are closed and reopened automatically on the correct tenant. Fixes 'content not found on the platform you are logged into' during Generate after switching tenants.",
+    "changelog": "SolidWorks now starts on the selected BOM's 3DEXPERIENCE tenant. If SolidWorks is already open on a different platform, unmodified documents are closed and SolidWorks is reopened on the correct tenant automatically; documents with unsaved changes prompt you to close them instead. Fixes 'content not found on the platform you are logged into' during Generate after switching tenants.",
     "sha256": null
   },
   "cadBridge": {
