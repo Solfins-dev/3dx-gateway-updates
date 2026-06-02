@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.62",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.62/CadBridge-Setup.zip",
-    "changelog": "Faster drawing PDF/DXF generation on large assemblies: a drawing already in the local cache that has not changed on the platform is now opened locally instead of being re-downloaded from 3DEXPERIENCE. Force Regenerate also no longer re-downloads unchanged drawings (it still regenerates the output files). No change to the generated outputs.",
-    "sha256": "43c3c2ba171d9320d2bfdd03e044c5016cd7671c98a5a6a43a21b8861fe22076"
+    "version": "1.8.63",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.63/CadBridge-Setup.zip",
+    "changelog": "Fixes a tray-icon crash that could take the agent offline after long uptime (e.g. when right-clicking the tray icon). Adds diagnostic logging for large-assembly Generate performance and SolidWorks resource usage (no change to generated outputs). Pairs with backend 1.1.25.",
+    "sha256": "92dddcd14047e9ff66d15cc7d670e8daf88aadd5fc5ccf14e40d9dbf2c5a97bc"
   }
 }
