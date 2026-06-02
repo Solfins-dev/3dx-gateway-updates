@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.61",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.61/CadBridge-Setup.zip",
-    "changelog": "Adds detailed timing instrumentation for the drawing-open step during Generate (diagnostic only — used to tune large-assembly performance). No change to generated outputs. Pairs with backend 1.1.25.",
-    "sha256": "34dacc9a66decad80101ac618bd58e0e45b1838e117b11b03d72167257f47108"
+    "version": "1.8.62",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.62/CadBridge-Setup.zip",
+    "changelog": "Faster drawing PDF/DXF generation on large assemblies: a drawing already in the local cache that has not changed on the platform is now opened locally instead of being re-downloaded from 3DEXPERIENCE. Force Regenerate also no longer re-downloads unchanged drawings (it still regenerates the output files). No change to the generated outputs.",
+    "sha256": "43c3c2ba171d9320d2bfdd03e044c5016cd7671c98a5a6a43a21b8861fe22076"
   }
 }
