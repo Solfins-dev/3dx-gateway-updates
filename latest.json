@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.25",
+    "version": "1.1.26",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Generating outputs for very large assemblies no longer stops after 30 minutes. The time limit now scales with the number of components, so a long but healthy run finishes instead of being cut off with a false \"Done\". Use the Stop button to cancel at any time.",
+    "changelog": "SolidWorks now always starts on the selected BOM's 3DEXPERIENCE tenant. If SolidWorks is already open on a different platform, documents with unsaved changes prompt you to close them, while unmodified documents are closed and reopened automatically on the correct tenant. Fixes 'content not found on the platform you are logged into' during Generate after switching tenants.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.63",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.63/CadBridge-Setup.zip",
-    "changelog": "Fixes a tray-icon crash that could take the agent offline after long uptime (e.g. when right-clicking the tray icon). Adds diagnostic logging for large-assembly Generate performance and SolidWorks resource usage (no change to generated outputs). Pairs with backend 1.1.25.",
-    "sha256": "92dddcd14047e9ff66d15cc7d670e8daf88aadd5fc5ccf14e40d9dbf2c5a97bc"
+    "version": "1.8.64",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.64/CadBridge-Setup.zip",
+    "changelog": "Starts SolidWorks on the correct 3DEXPERIENCE platform for the selected BOM, even after switching tenants in the gateway.",
+    "sha256": "9aa34ba151df7293ff58b568917f02926b7d25f1c7380cc64efa93746826b58d"
   }
 }
