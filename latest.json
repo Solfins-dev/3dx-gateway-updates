@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.28",
+    "version": "1.1.29",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Diagnostic launch-timing instrumentation for Generate: the browser console now logs a detailed breakdown of the 'assembly loaded - generation starts' window (pre-flight checks + SolidWorks open/load/engage). No change to generation behaviour.",
+    "changelog": "Generate now automatically switches SolidWorks to the BOM's tenant when SolidWorks is open on a different 3DEXPERIENCE platform (closes documents that have no unsaved changes + reopens SolidWorks on the correct tenant), instead of asking you to close SolidWorks manually. Documents with unsaved changes still prompt you to save + close first.",
     "sha256": null
   },
   "cadBridge": {
