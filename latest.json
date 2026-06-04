@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.27",
+    "version": "1.1.28",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "SolidWorks now starts on the selected BOM's 3DEXPERIENCE tenant. If SolidWorks is already open on a different platform, unmodified documents are closed and SolidWorks is reopened on the correct tenant automatically; documents with unsaved changes prompt you to close them instead. Fixes 'content not found on the platform you are logged into' during Generate after switching tenants.",
+    "changelog": "Diagnostic launch-timing instrumentation for Generate: the browser console now logs a detailed breakdown of the 'assembly loaded - generation starts' window (pre-flight checks + SolidWorks open/load/engage). No change to generation behaviour.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.65",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.65/CadBridge-Setup.zip",
-    "changelog": "Fixes the SolidWorks 'Local cache is already populated with a file of another component' dialog that could block drawing PDF/DXF generation during Generate. Drawings being refreshed from the platform now clear their stale local cache entry first, so generation no longer halts on that dialog. Cached, up-to-date drawings are unaffected (still opened fast from the local cache).",
-    "sha256": "e326340a987bbaeb2ac3a6a4a3d2f05e58c0fe0c21511aa65f17a648473b13d0"
+    "version": "1.8.66",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.66/CadBridge-Setup.zip",
+    "changelog": "Diagnostic timing instrumentation: the Generate timing summary now splits the setup phase into 'foreign-doc cleanup' vs 'BOM-root open/activate' so large-assembly launch time can be attributed. No change to generation behaviour.",
+    "sha256": "6be9d913fe1442f6f73f8c52bdb3b80b1395bf7ba116ec6ba78339d3bb60a935"
   }
 }
