@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.64",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.64/CadBridge-Setup.zip",
-    "changelog": "Starts SolidWorks on the correct 3DEXPERIENCE platform for the selected BOM, even after switching tenants in the gateway.",
-    "sha256": "9aa34ba151df7293ff58b568917f02926b7d25f1c7380cc64efa93746826b58d"
+    "version": "1.8.65",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.65/CadBridge-Setup.zip",
+    "changelog": "Fixes the SolidWorks 'Local cache is already populated with a file of another component' dialog that could block drawing PDF/DXF generation during Generate. Drawings being refreshed from the platform now clear their stale local cache entry first, so generation no longer halts on that dialog. Cached, up-to-date drawings are unaffected (still opened fast from the local cache).",
+    "sha256": "e326340a987bbaeb2ac3a6a4a3d2f05e58c0fe0c21511aa65f17a648473b13d0"
   }
 }
