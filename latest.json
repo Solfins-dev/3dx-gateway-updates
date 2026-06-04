@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.31",
+    "version": "1.1.32",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "SolidWorks now refuses to generate when it is connected to a different 3DEXPERIENCE platform than the BOM you are generating — instead of producing 'content not found on the platform you are logged into' errors and wrong outputs, it stops with a clear message to close SolidWorks or switch to the BOM's tenant. Works for every Generate path.",
+    "changelog": "Generate refreshes stale parts and assemblies from the platform (not just drawings), and still refuses to generate when SolidWorks is on a different 3DEXPERIENCE tenant than the BOM.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.69",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.69/CadBridge-Setup.zip",
-    "changelog": "Reliability: reverts a too-aggressive stale-refresh change; SolidWorks tenant safety backstop retained. Stale part/assembly refresh is being redesigned safely.",
-    "sha256": "acdbd7949e057bc903c5a6086d74b996ed739d00c6dc4b0a563b1f8d577914dc"
+    "version": "1.8.70",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.70/CadBridge-Setup.zip",
+    "changelog": "Generate now correctly refreshes stale PARTS and ASSEMBLIES from the platform (previously only drawings refreshed), so STEP, 3D PDF and thumbnails reflect the current server content. Fixes the case where an assembly opened from an older cached copy despite a newer version on the platform.",
+    "sha256": "beccda808665a05f703e5db7c475e9f117115e2b7bca7d1f053660e437cc6e6a"
   }
 }
