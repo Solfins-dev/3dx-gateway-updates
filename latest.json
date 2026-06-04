@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.67",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.67/CadBridge-Setup.zip",
-    "changelog": "Tenant safety backstop: the Generate agent refuses to run when SolidWorks is connected to a different 3DEXPERIENCE tenant than the BOM, preventing wrong-platform opens and wrong/empty outputs regardless of how Generate was triggered.",
-    "sha256": "3da870abbfec24878638b96ff2bd3cba03e731673642597fe5b24e2e331a7a66"
+    "version": "1.8.68",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.68/CadBridge-Setup.zip",
+    "changelog": "Generate now refreshes stale PARTS and ASSEMBLIES from the platform too (previously only drawings were refreshed) — so STEP, 3D PDF and thumbnails reflect the current server content instead of an older cached copy. Pulls the platform's current state (keeping each assembly's as-referenced child revisions).",
+    "sha256": "15373ae19da61dacaf53d8daaa4edcf4152ae9f8ddf76704209aa8a696d96928"
   }
 }
