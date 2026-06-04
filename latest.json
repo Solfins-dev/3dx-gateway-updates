@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.30",
+    "version": "1.1.31",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Diagnostic launch-timing refinement: the Generate timing breakdown now reports how much of the startup time was spent waiting on the 'generate anyway' confirmation dialog (user think+click) vs machine work. No change to generation behaviour.",
+    "changelog": "SolidWorks now refuses to generate when it is connected to a different 3DEXPERIENCE platform than the BOM you are generating — instead of producing 'content not found on the platform you are logged into' errors and wrong outputs, it stops with a clear message to close SolidWorks or switch to the BOM's tenant. Works for every Generate path.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.66",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.66/CadBridge-Setup.zip",
-    "changelog": "Diagnostic timing instrumentation: the Generate timing summary now splits the setup phase into 'foreign-doc cleanup' vs 'BOM-root open/activate' so large-assembly launch time can be attributed. No change to generation behaviour.",
-    "sha256": "6be9d913fe1442f6f73f8c52bdb3b80b1395bf7ba116ec6ba78339d3bb60a935"
+    "version": "1.8.67",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.67/CadBridge-Setup.zip",
+    "changelog": "Tenant safety backstop: the Generate agent refuses to run when SolidWorks is connected to a different 3DEXPERIENCE tenant than the BOM, preventing wrong-platform opens and wrong/empty outputs regardless of how Generate was triggered.",
+    "sha256": "3da870abbfec24878638b96ff2bd3cba03e731673642597fe5b24e2e331a7a66"
   }
 }
