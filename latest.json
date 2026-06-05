@@ -1,15 +1,16 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.33",
+    "version": "1.1.34",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Generate now reliably re-downloads stale parts and assemblies from the platform so STEP, 3D PDF and thumbnails reflect the current server content. Only items whose platform version actually changed are refreshed (no needless re-downloads of an up-to-date cache). Still refuses to generate when SolidWorks is on a different 3DEXPERIENCE tenant than the BOM.",
+    "changelog": "Every SolidWorks open path now enforces the same tenant precondition: when SolidWorks is on a different 3DEXPERIENCE tenant than the BOM, the app closes and relaunches it on the correct tenant automatically - including when the only unsaved changes are SolidWorks' own auto-resolved references (a one-click confirmation guards any real unsaved work; nothing is ever saved to the platform). Verification failures now block with a clear message instead of silently proceeding.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.71",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.71/CadBridge-Setup.zip",
-    "changelog": "Stale parts and assemblies are now actually refreshed: the agent frees the local cache slot of each changed item so SolidWorks re-downloads the latest geometry (previously the cached copy was reused, so outputs looked fresh but held old content). Identity-based and surgical - never touches a shared, virtual-component, or unsaved-changes file.",
-    "sha256": "95b6adfafc91119d41bf8ec3f8decba20b51c6a92259b0c76ba28669b359b7be"
+    "version": "1.8.72",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.72/CadBridge-Setup.zip",
+    "changelog": "Opening a file from the gateway now refuses cleanly when SolidWorks (Connected mode) is logged into a different tenant than requested, instead of popping the 'content was not found on the platform you are logged into' dialog. Mirrors the existing Connector-mode guard.",
+    "sha256": "ad04e40f442a793b9d46026177c0ce214355a513c334aa95a40afc88c8ac095e"
   }
 }
+
