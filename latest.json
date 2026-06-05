@@ -7,10 +7,10 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.74",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.74/CadBridge-Setup.zip",
-    "changelog": "Per-file freshness index: the agent records which platform version each cached CAD file was downloaded at, so repeat Generate runs reuse current files instead of re-downloading them, and genuinely outdated cached assemblies are refreshed automatically (removes the blocking revision-conflict dialogs). Interrupted runs keep their progress. Also includes 1.8.73: drawing PDFs now contain ALL non-DXF sheets (clear the generated-files cache or use Force Regenerate once so existing incomplete PDFs are rewritten).",
-    "sha256": "8c32e21b86af0008469edeacc8810dd836296ea22e118cf9cb831dec1e5031cf"
+    "version": "1.8.75",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.75/CadBridge-Setup.zip",
+    "changelog": "Per-file freshness index now works on all tenant caches (including those storing files under friendly names) and a drawing shared by multiple BOM items is downloaded once per run instead of once per item. Includes 1.8.74 (freshness index: repeat runs reuse current files, outdated cached assemblies refresh automatically, interrupted runs keep progress) and 1.8.73 (drawing PDFs contain ALL non-DXF sheets - clear the generated-files cache or Force Regenerate once so existing incomplete PDFs are rewritten).",
+    "sha256": "393116f9055740ccc962b7a64881322df9b325fa1b7caf75f464bd170c51b0b1"
   }
 }
 
