@@ -1,16 +1,16 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.34",
+    "version": "1.1.35",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Every SolidWorks open path now enforces the same tenant precondition: when SolidWorks is on a different 3DEXPERIENCE tenant than the BOM, the app closes and relaunches it on the correct tenant automatically - including when the only unsaved changes are SolidWorks' own auto-resolved references (a one-click confirmation guards any real unsaved work; nothing is ever saved to the platform). Verification failures now block with a clear message instead of silently proceeding.",
+    "changelog": "Generate now remembers, per cached CAD file, which platform version it last downloaded - so repeat runs skip re-downloading drawings and parts that are already current (drawing phase drops from hours to minutes on large assemblies from the second run), and outdated locally-cached assemblies are refreshed automatically even on a first run, eliminating the blocking 'Unable to load revision A.1 - will use B.1' SolidWorks dialogs caused by stale local copies.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.73",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.73/CadBridge-Setup.zip",
-    "changelog": "Drawing PDFs now contain ALL non-DXF sheets - previously only the first sheet was exported, so PDFs of multi-sheet drawings were incomplete (and looked identical when drawings shared the same first sheet). After updating, clear the generated-files cache (or use Force Regenerate) so existing incomplete PDFs are rewritten. Also: opening a file from the gateway refuses cleanly when SolidWorks Connected is logged into a different tenant than requested (1.8.72).",
-    "sha256": "50b9bc910a48f7ed2dd88eca7e0d018212bc1db96860def95f2d7561ac6e89b3"
+    "version": "1.8.74",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.74/CadBridge-Setup.zip",
+    "changelog": "Per-file freshness index: the agent records which platform version each cached CAD file was downloaded at, so repeat Generate runs reuse current files instead of re-downloading them, and genuinely outdated cached assemblies are refreshed automatically (removes the blocking revision-conflict dialogs). Interrupted runs keep their progress. Also includes 1.8.73: drawing PDFs now contain ALL non-DXF sheets (clear the generated-files cache or use Force Regenerate once so existing incomplete PDFs are rewritten).",
+    "sha256": "8c32e21b86af0008469edeacc8810dd836296ea22e118cf9cb831dec1e5031cf"
   }
 }
 
