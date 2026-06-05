@@ -3,14 +3,14 @@
   "backend": {
     "version": "1.1.35",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Generate now remembers, per cached CAD file, which platform version it last downloaded - so repeat runs skip re-downloading drawings and parts that are already current (drawing phase drops from hours to minutes on large assemblies from the second run), and outdated locally-cached assemblies are refreshed automatically even on a first run, eliminating the blocking 'Unable to load revision A.1 - will use B.1' SolidWorks dialogs caused by stale local copies.",
+    "changelog": "Generate now remembers, per cached CAD file, which platform version it last downloaded - so repeat runs skip re-downloading drawings and parts that are already current, and outdated locally-cached assemblies are refreshed automatically, eliminating the blocking 'Unable to load revision A.1 - will use B.1' SolidWorks dialogs caused by stale local copies.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.75",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.75/CadBridge-Setup.zip",
-    "changelog": "Per-file freshness index now works on all tenant caches (including those storing files under friendly names) and a drawing shared by multiple BOM items is downloaded once per run instead of once per item. Includes 1.8.74 (freshness index: repeat runs reuse current files, outdated cached assemblies refresh automatically, interrupted runs keep progress) and 1.8.73 (drawing PDFs contain ALL non-DXF sheets - clear the generated-files cache or Force Regenerate once so existing incomplete PDFs are rewritten).",
-    "sha256": "393116f9055740ccc962b7a64881322df9b325fa1b7caf75f464bd170c51b0b1"
+    "version": "1.8.76",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.76/CadBridge-Setup.zip",
+    "changelog": "STEP and 3D PDF generation no longer fails when a large foreign assembly is left in the SolidWorks session with auto-resolved (unsaved) reference changes - it is now closed without saving before the standalone export phase (nothing is ever saved to 3DEXPERIENCE). Includes 1.8.75 (per-file freshness index works on all tenant caches; shared drawings download once per run), 1.8.74 (freshness index) and 1.8.73 (drawing PDFs contain ALL non-DXF sheets - clear the generated-files cache or Force Regenerate once).",
+    "sha256": "abbf2aad5c76b279cfe5e53429266580aaaec71f1e5bf496e4e1e632e3fc1e12"
   }
 }
 
