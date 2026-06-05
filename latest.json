@@ -7,10 +7,10 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.72",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.72/CadBridge-Setup.zip",
-    "changelog": "Opening a file from the gateway now refuses cleanly when SolidWorks (Connected mode) is logged into a different tenant than requested, instead of popping the 'content was not found on the platform you are logged into' dialog. Mirrors the existing Connector-mode guard.",
-    "sha256": "ad04e40f442a793b9d46026177c0ce214355a513c334aa95a40afc88c8ac095e"
+    "version": "1.8.73",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.73/CadBridge-Setup.zip",
+    "changelog": "Drawing PDFs now contain ALL non-DXF sheets - previously only the first sheet was exported, so PDFs of multi-sheet drawings were incomplete (and looked identical when drawings shared the same first sheet). After updating, clear the generated-files cache (or use Force Regenerate) so existing incomplete PDFs are rewritten. Also: opening a file from the gateway refuses cleanly when SolidWorks Connected is logged into a different tenant than requested (1.8.72).",
+    "sha256": "50b9bc910a48f7ed2dd88eca7e0d018212bc1db96860def95f2d7561ac6e89b3"
   }
 }
 
