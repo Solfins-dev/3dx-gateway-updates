@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.80",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.80/CadBridge-Setup.zip",
-    "changelog": "Auto-dismisses the blocking SolidWorks 'What's Wrong' rebuild-error dialog (now also while the file opens), so an assembly with a rebuild-errored component no longer stalls — and no longer wedges SolidWorks while the dialog waits. The dialog text is logged so you can see which component has errors.",
-    "sha256": "c65065ba49e8789ac3be2856c1f9bf2cfa5691ec2116b8c077cd85e76fe4a96d"
+    "version": "1.8.81",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.81/CadBridge-Setup.zip",
+    "changelog": "3D PDF generation now survives a transient SolidWorks COM disconnect on large assemblies: it re-acquires the connection and continues instead of stopping, so a brief RPC drop no longer aborts the remaining 3D PDFs.",
+    "sha256": "bb70f91a1a3e123bdec5533bd178a8b25f987e0242ba4dc3992dce3cec8aa61b"
   }
 }
