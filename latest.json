@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.35",
+    "version": "1.1.36",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "No backend change in this release.",
+    "changelog": "Keeps the 3DEXPERIENCE session alive during long Generate runs (large assemblies) so PDF and DXF outputs are no longer lost to a mid-run session timeout.",
     "sha256": null
   },
   "cadBridge": {
