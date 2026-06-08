@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.36",
+    "version": "1.1.37",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Keeps the 3DEXPERIENCE session alive during long Generate runs (large assemblies) so PDF and DXF outputs are no longer lost to a mid-run session timeout.",
+    "changelog": "Fixes large assemblies that reported Done but generated nothing: the post-engage SolidWorks readiness recheck no longer times out and aborts the run while SolidWorks is still busy loading; it now retries briefly, and a blocked run no longer falsely shows Done.",
     "sha256": null
   },
   "cadBridge": {
