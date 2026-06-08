@@ -3,13 +3,13 @@
   "backend": {
     "version": "1.1.35",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Generate now remembers, per cached CAD file, which platform version it last downloaded - so repeat runs skip re-downloading drawings and parts that are already current, and outdated locally-cached assemblies are refreshed automatically, eliminating the blocking 'Unable to load revision A.1 - will use B.1' SolidWorks dialogs caused by stale local copies.",
+    "changelog": "No backend change in this release.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.77",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.77/CadBridge-Setup.zip",
-    "changelog": "Generate is significantly faster when one drawing is shared by many BOM items - the shared drawing is rendered once per run and its PDF/DXF outputs are reused for the other items (multi-item drawing phases drop from ~35 to ~10 minutes). The blocking SolidWorks revision-conflict dialog ('Unable to load revision ... already open in the session') is now dismissed automatically during generation - every dismissal is logged and shown in the output messages, so unattended runs no longer stall. Includes 1.8.76 (foreign dirty assemblies closed before standalone export).",
-    "sha256": "8e456c833035eeb169da30df53f4659c60472efe435613becc8a0a4eee10d330"
+    "version": "1.8.78",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.78/CadBridge-Setup.zip",
+    "changelog": "Zombie-SolidWorks resilience: if a previous run left SolidWorks alive but unresponsive (dead COM link), the agent now detects it before launching and restarts it automatically, so the 'Cannot retrieve running SOLIDWORKS' launcher dialog no longer blocks the next Generate. Also stops cleanly (no error flood) if SolidWorks disconnects mid-run.",
+    "sha256": "23f112576fe90b0b073ee3ac6181201ff2d887885e731b1bee3ef01a7bbe15a0"
   }
 }
