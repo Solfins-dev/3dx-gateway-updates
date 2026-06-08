@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.78",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.78/CadBridge-Setup.zip",
-    "changelog": "Zombie-SolidWorks resilience: if a previous run left SolidWorks alive but unresponsive (dead COM link), the agent now detects it before launching and restarts it automatically, so the 'Cannot retrieve running SOLIDWORKS' launcher dialog no longer blocks the next Generate. Also stops cleanly (no error flood) if SolidWorks disconnects mid-run.",
-    "sha256": "23f112576fe90b0b073ee3ac6181201ff2d887885e731b1bee3ef01a7bbe15a0"
+    "version": "1.8.79",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.79/CadBridge-Setup.zip",
+    "changelog": "Auto-dismisses the blocking SolidWorks 'What's Wrong' rebuild-error dialog during Generate so an assembly with a rebuild-errored component no longer stalls the run waiting for a manual Close. The dialog text is logged so you can see which component has errors (its outputs may be unreliable). Builds on 1.8.78 zombie-SolidWorks resilience.",
+    "sha256": "af96133557475cd149454f3059582bd9eff47f139a98adcbeed7196b28c2ecb7"
   }
 }
