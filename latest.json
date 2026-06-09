@@ -3,13 +3,13 @@
   "backend": {
     "version": "1.1.39",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Co-release with CadBridge 1.8.83 — a wedged (frozen-COM) SolidWorks at the start of Generate is now auto-recovered with a one-click restart prompt instead of a dead-end.",
+    "changelog": "Co-release with CadBridge 1.8.85 — a wedged (frozen-COM) SolidWorks at the start of Generate is auto-recovered with a one-click restart prompt; a large assembly that's merely still loading is NOT mistaken for a wedge.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.83",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.83/CadBridge-Setup.zip",
-    "changelog": "If SolidWorks is frozen (COM not responding) when you click Generate & Export, the app now detects it, asks you to save any work, and restarts SolidWorks into a clean session automatically — no more 'Cannot verify SolidWorks state' dead-end or manual Task-Manager kill. Your unsaved work is never discarded without asking.",
-    "sha256": "6f9344ca085dcd6f49e3bcace96d7f14924e90e4dce1e57c9c705fd6a75f1f7e"
+    "version": "1.8.85",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.85/CadBridge-Setup.zip",
+    "changelog": "If SolidWorks is truly frozen (COM not responding AND the process idle) when you click Generate & Export, the app detects it, asks you to save any work, and restarts SolidWorks into a clean session automatically — no 'Cannot verify SolidWorks state' dead-end, no manual kill, and your unsaved work is never discarded without asking. A very large assembly that is simply still loading (CPU/memory active) is correctly treated as healthy and is NOT restarted.",
+    "sha256": "b9aaaf19471e19e3b67f44ad3c4fdb07d6875567023f26c5cad177deff45b014"
   }
 }
