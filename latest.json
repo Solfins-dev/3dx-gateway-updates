@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.37",
+    "version": "1.1.38",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Large-assembly Generate: the post-engage SolidWorks readiness recheck retries instead of aborting while SW is busy, and a blocked run no longer falsely shows Done.",
+    "changelog": "Co-release with CadBridge 1.8.82 — large-assembly 3D PDF auto-resumes after a SolidWorks restart.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.81",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.81/CadBridge-Setup.zip",
-    "changelog": "3D PDF generation now survives a transient SolidWorks COM disconnect on large assemblies: it re-acquires the connection and continues instead of stopping, so a brief RPC drop no longer aborts the remaining 3D PDFs.",
-    "sha256": "bb70f91a1a3e123bdec5533bd178a8b25f987e0242ba4dc3992dce3cec8aa61b"
+    "version": "1.8.82",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.82/CadBridge-Setup.zip",
+    "changelog": "3D PDF on large assemblies now survives a SolidWorks COM drop: the app restarts SolidWorks and resumes the remaining 3D PDFs automatically (no re-collect, no crash) and auto-dismisses the launcher prompts, so the export completes unattended.",
+    "sha256": "6a2dbe8d5feb617c7fb19550e6fd7c00f195f561b82af36069aa7f1ecf77e32a"
   }
 }
