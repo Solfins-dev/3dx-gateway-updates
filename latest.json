@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.38",
+    "version": "1.1.39",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Co-release with CadBridge 1.8.82 — large-assembly 3D PDF auto-resumes after a SolidWorks restart.",
+    "changelog": "Co-release with CadBridge 1.8.83 — a wedged (frozen-COM) SolidWorks at the start of Generate is now auto-recovered with a one-click restart prompt instead of a dead-end.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.82",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.82/CadBridge-Setup.zip",
-    "changelog": "3D PDF on large assemblies now survives a SolidWorks COM drop: the app restarts SolidWorks and resumes the remaining 3D PDFs automatically (no re-collect, no crash) and auto-dismisses the launcher prompts, so the export completes unattended.",
-    "sha256": "6a2dbe8d5feb617c7fb19550e6fd7c00f195f561b82af36069aa7f1ecf77e32a"
+    "version": "1.8.83",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.83/CadBridge-Setup.zip",
+    "changelog": "If SolidWorks is frozen (COM not responding) when you click Generate & Export, the app now detects it, asks you to save any work, and restarts SolidWorks into a clean session automatically — no more 'Cannot verify SolidWorks state' dead-end or manual Task-Manager kill. Your unsaved work is never discarded without asking.",
+    "sha256": "6f9344ca085dcd6f49e3bcace96d7f14924e90e4dce1e57c9c705fd6a75f1f7e"
   }
 }
