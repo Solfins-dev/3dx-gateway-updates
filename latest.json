@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.87",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.87/CadBridge-Setup.zip",
-    "changelog": "Switching SolidWorks to another tenant no longer gets stuck repeating the 'Local cache is already populated ... of another component' dialog: the agent now clears just the one stale cached file each dialog names and retries the open automatically, so a whole batch of leftover files from a previous tenant clears in a single Generate (never a full-cache wipe). The tray Update button also works on more machines (it falls back to PowerShell when the elevated command prompt is blocked), and a misleading 'Wrong tenant' message no longer appears when SolidWorks is simply still starting up.",
-    "sha256": "cab374097bd6081dd279273dee54ccae184dbae6ecd89aed78273ccfa10cf5a4"
+    "version": "1.8.88",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.88/CadBridge-Setup.zip",
+    "changelog": "The tray Update now installs fully unattended on machines where it previously fell back to PowerShell - it no longer pauses to ask for the server address or a confirmation. And SolidWorks 'reload missing references' prompts that can appear after the local cache is cleaned are now handled automatically during Generate.",
+    "sha256": "bf49d79ffad11bf9c1a5610005864c4d8097a5f0babd0f6e7cd5ca27870a0661"
   }
 }
