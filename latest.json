@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.39",
+    "version": "1.1.40",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Co-release with CadBridge 1.8.85 — a wedged (frozen-COM) SolidWorks at the start of Generate is auto-recovered with a one-click restart prompt; a large assembly that's merely still loading is NOT mistaken for a wedge.",
+    "changelog": "Co-release with CadBridge 1.8.86 — Generate no longer false-aborts on a large assembly that's simply slow (it now checks whether SolidWorks is actually working before giving up), and frontend diagnostics are funneled into the agent log.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.85",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.85/CadBridge-Setup.zip",
-    "changelog": "If SolidWorks is truly frozen (COM not responding AND the process idle) when you click Generate & Export, the app detects it, asks you to save any work, and restarts SolidWorks into a clean session automatically — no 'Cannot verify SolidWorks state' dead-end, no manual kill, and your unsaved work is never discarded without asking. A very large assembly that is simply still loading (CPU/memory active) is correctly treated as healthy and is NOT restarted.",
-    "sha256": "b9aaaf19471e19e3b67f44ad3c4fdb07d6875567023f26c5cad177deff45b014"
+    "version": "1.8.86",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.86/CadBridge-Setup.zip",
+    "changelog": "Generate no longer gives up on a big assembly that is simply slow: before declaring a stall it checks whether SolidWorks is actually working (CPU/memory active) and only restarts if SolidWorks is truly idle or stuck for over 30 minutes. The stall-recovery close timeout was raised so it no longer false-fails while SolidWorks is busy, and frontend progress milestones are now written into the agent log for easier diagnosis of long runs.",
+    "sha256": "b92a124f29bef9851f762d922b38e3c6856d2a15acc3ad1134919d2c35f2d6fc"
   }
 }
