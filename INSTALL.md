@@ -817,9 +817,17 @@ These bite when the gateway is installed onto an **already-populated**
 Windows Server (e.g. one already running IIS / DelmiaWorks WebDirect),
 especially inside an ESXi/Hyper-V VM.
 
-> **Resolved in installer v1.7.0 / v1.7.1** (2026-06-11). The installer now
+> **Resolved in installer v1.7.0 — v1.7.4** (2026-06-11). The installer now
 > handles all of the below automatically: it assumes the server may already be
 > serving production and works *around* it, never stopping another service.
+> - **Local-CA Caddyfile (v1.7.4):** generates the same structure as `install.sh`
+>   — a global `auto_https disable_redirects` + an explicit `http://<host>` site
+>   so Caddy's automatic HTTP→HTTPS redirect doesn't shadow `/caddy-ca.crt` (that
+>   308 returns a 0-byte body and breaks the CadBridge CA bootstrap). The CA is
+>   also served on the HTTPS site so CadBridge's HTTPS fallback works when the
+>   HTTP port is remapped (e.g. 8081 behind IIS). Pair with CadBridge **1.8.91+**
+>   (Setup fetches the CA via `curl.exe` — robust TLS — trying port 80, then the
+>   HTTPS address, then the alt HTTP ports).
 > - **Firewall (v1.7.1):** opens inbound TCP for exactly the published HTTPS +
 >   HTTP ports ("3DX Gateway TCP <port>" rules) so LAN clients don't get
 >   ERR_CONNECTION_TIMED_OUT -- Docker Desktop does this on a workstation but
