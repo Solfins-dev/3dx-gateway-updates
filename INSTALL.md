@@ -70,6 +70,14 @@ curl -sSLO https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/mai
 sudo bash install.sh
 ```
 
+`install.sh` **v1.4.0+** assumes the host may already be serving production: if
+the HTTPS port (443) is taken it auto-falls-back to a free port (8443 family,
+unless you pin `--port`); if Caddy's HTTP port (80) is taken it falls back to
+8080/8081/… (`--http-port 0` disables the `/caddy-ca.crt` HTTP site, serving the
+CA over HTTPS only). It opens the published ports in `ufw`/`firewalld` when one
+is active (`--skip-firewall` to opt out — note Docker usually publishes ports
+below `ufw`'s filter chain anyway). It never stops another service.
+
 #### Windows Server
 
 You don't need Docker pre-installed -- the installer detects it's
@@ -286,7 +294,8 @@ root). When the container falls back to `Environment.MachineName` (no
 seed env var set), every `docker compose up -d` recreate hands the new
 container a different MachineName, the derived key changes, and
 previously-encrypted values become unreadable — the bug
-`install.sh v1.3.1` and `install.ps1 v1.6.1` close.
+`install.sh` and `install.ps1` close (the one-line installers; current
+`install.sh v1.4.0` / `install.ps1 v1.7.4`).
 
 #### 1.B.4 Drop in your license file
 
