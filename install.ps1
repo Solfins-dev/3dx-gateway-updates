@@ -125,7 +125,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
 # Constants
-$INSTALLER_VERSION   = '1.7.2'
+$INSTALLER_VERSION   = '1.7.3'
 $DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
 $WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
@@ -1225,11 +1225,19 @@ $($Script:EffHostname) {
         # TOFU) when the host's port 80 is taken by IIS and the CA isn't on the
         # standard HTTP port. Keep the :80 redirect + CA site too when we
         # secured an HTTP port.
+        # IMPORTANT: every catch-all directive must live in its own `handle`
+        # block. A bare `redir /*` or `reverse_proxy` outside a handle is
+        # ordered BEFORE `handle /caddy-ca.crt` in Caddy's directive order, so
+        # it swallows /caddy-ca.crt (the redirect returns a 0-byte 302 and the
+        # CA never downloads). Wrapping the catch-all in `handle {}` makes the
+        # specific `handle /caddy-ca.crt` win for that path.
         $httpsSite = @"
 $($Script:EffHostname) {
     tls internal
 $caHandler
-    reverse_proxy app:5000
+    handle {
+        reverse_proxy app:5000
+    }
 }
 "@
         if ($Script:EffHttpPort -ne 0) {
@@ -1239,7 +1247,9 @@ $httpsSite
 # Expose the local CA + redirect HTTP to HTTPS.
 :80 {
 $caHandler
-    redir /* $redirTarget{uri}
+    handle {
+        redir /* $redirTarget{uri}
+    }
 }
 "@
         } else {
