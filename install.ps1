@@ -125,7 +125,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
 # Constants
-$INSTALLER_VERSION   = '1.7.3'
+$INSTALLER_VERSION   = '1.7.4'
 $DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
 $WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
@@ -1219,18 +1219,26 @@ $($Script:EffHostname) {
 }
 "@
     } else {
-        # auto (local CA): ALWAYS expose /caddy-ca.crt on the HTTPS site so
-        # clients can fetch it at https://<host>:<port>/caddy-ca.crt regardless
-        # of the HTTP port. This is what CadBridge Setup falls back to (over
-        # TOFU) when the host's port 80 is taken by IIS and the CA isn't on the
-        # standard HTTP port. Keep the :80 redirect + CA site too when we
-        # secured an HTTP port.
-        # IMPORTANT: every catch-all directive must live in its own `handle`
-        # block. A bare `redir /*` or `reverse_proxy` outside a handle is
-        # ordered BEFORE `handle /caddy-ca.crt` in Caddy's directive order, so
-        # it swallows /caddy-ca.crt (the redirect returns a 0-byte 302 and the
-        # CA never downloads). Wrapping the catch-all in `handle {}` makes the
-        # specific `handle /caddy-ca.crt` win for that path.
+        # auto (local CA). Mirrors scripts/install.sh's proven Caddyfile:
+        #  - Global `auto_https disable_redirects`: Caddy auto-adds an HTTP->HTTPS
+        #    redirect for any host that has an HTTPS site, and that auto-redirect
+        #    WINS hostname matching for /caddy-ca.crt on the HTTP port (308 to
+        #    HTTPS), which a workstation can't follow before it trusts the CA ->
+        #    0-byte download -> Setup aborts. Disabling it lets our explicit HTTP
+        #    site serve the CA. Cert management itself is unaffected.
+        #  - The CA is exposed by an EXPLICIT `http://<host>` site, NOT a bare
+        #    `:80` (which auto-HTTPS still shadows for the matching hostname).
+        #  - The redirect lives in a catch-all `handle {}` so the more specific
+        #    `handle /caddy-ca.crt` wins (Caddy orders top-level `redir` before
+        #    `handle`).
+        #  - We ALSO keep the CA handler on the HTTPS site so CadBridge's HTTPS
+        #    (TOFU/curl) fallback works when the host's HTTP port is taken or
+        #    remapped (e.g. 8081 behind IIS) -- Windows-specific belt-and-braces.
+        $globalBlock = @"
+{
+    auto_https disable_redirects
+}
+"@
         $httpsSite = @"
 $($Script:EffHostname) {
     tls internal
@@ -1242,18 +1250,24 @@ $caHandler
 "@
         if ($Script:EffHttpPort -ne 0) {
             $caddyfile = @"
+$globalBlock
+
 $httpsSite
 
-# Expose the local CA + redirect HTTP to HTTPS.
-:80 {
+# Expose the local CA over HTTP so first-time workstations can fetch it.
+http://$($Script:EffHostname) {
 $caHandler
     handle {
-        redir /* $redirTarget{uri}
+        redir $redirTarget{uri}
     }
 }
 "@
         } else {
-            $caddyfile = $httpsSite
+            $caddyfile = @"
+$globalBlock
+
+$httpsSite
+"@
         }
     }
     Set-Content -Path (Join-Path $Script:EffInstallDir 'Caddyfile') -Value $caddyfile -Encoding UTF8
