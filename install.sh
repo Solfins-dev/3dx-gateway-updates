@@ -41,7 +41,7 @@
 
 set -euo pipefail
 
-INSTALLER_VERSION="1.3.1"
+INSTALLER_VERSION="1.4.0"
 PUBLIC_REPO_BASE="https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main"
 GHCR_IMAGE_BACKEND="ghcr.io/solfins-dev/3dx-gateway:latest"
 
@@ -49,6 +49,7 @@ GHCR_IMAGE_BACKEND="ghcr.io/solfins-dev/3dx-gateway:latest"
 DEFAULT_INSTALL_DIR="/opt/3dx-gateway"
 DEFAULT_PORT_TLS=443
 DEFAULT_PORT_HTTP=5000
+DEFAULT_CADDY_HTTP_PORT=80   # host port mapped to Caddy's :80 (redirect + local-CA download)
 MIN_DISK_GB=5
 MIN_RAM_MB=1800   # 2 GB rated, allow some slack for VMs that report 1900-ish
 
@@ -56,6 +57,8 @@ MIN_RAM_MB=1800   # 2 GB rated, allow some slack for VMs that report 1900-ish
 ARG_INSTALL_DIR=""
 ARG_HOSTNAME=""
 ARG_PORT=""
+ARG_HTTP_PORT=""        # host port for Caddy :80 (TLS modes); "0" disables; "" = auto
+ARG_SKIP_FIREWALL=0     # 0 | 1
 ARG_TLS=""              # auto | letsencrypt | none
 ARG_LICENSE=""
 ARG_TELEMETRY=""        # on | off
@@ -68,6 +71,7 @@ ARG_DRY_RUN=0
 INSTALL_DIR=""
 HOSTNAME_FQDN=""
 APP_PORT=""
+HTTP_PORT=""
 TLS_MODE=""
 LICENSE_PATH=""
 TELEMETRY_ENABLED=""
@@ -122,7 +126,14 @@ Usage: sudo bash install.sh [flags]
 Flags:
   --install-dir PATH       Install location (default: $DEFAULT_INSTALL_DIR)
   --hostname HOST          Gateway FQDN workstations will use (default: auto-detect)
-  --port N                 HTTPS port (default: $DEFAULT_PORT_TLS) or HTTP if --tls none
+  --port N                 HTTPS port (default: $DEFAULT_PORT_TLS) or HTTP if --tls none.
+                           If busy, auto-falls-back to a free port (8443 family)
+                           UNLESS pinned with --port.
+  --http-port N            Host port mapped to Caddy's :80 site (HTTP->HTTPS redirect +
+                           local-CA download), TLS modes only (default: 80; auto-falls-back
+                           to 8080 family if busy; 0 disables the :80 site).
+  --skip-firewall          Don't open firewall ports (ufw/firewalld). Default: open the
+                           published ports if a firewall is active.
   --tls MODE               TLS mode: auto | letsencrypt | none (default: auto)
                               auto:        Caddy with local CA (recommended for LAN)
                               letsencrypt: Caddy with Let's Encrypt (public hostname required)
@@ -141,8 +152,8 @@ Examples:
   sudo bash install.sh
 
   # Unattended:
-  sudo bash install.sh -y --hostname gateway.acme.local \\
-       --license /tmp/acme.lic --helper
+  sudo bash install.sh -y --hostname gateway.example.com \\
+       --license /tmp/example.lic --helper
 
 EOF
     exit 0
@@ -154,6 +165,8 @@ parse_args() {
             --install-dir)      ARG_INSTALL_DIR="$2"; shift 2 ;;
             --hostname)         ARG_HOSTNAME="$2"; shift 2 ;;
             --port)             ARG_PORT="$2"; shift 2 ;;
+            --http-port)        ARG_HTTP_PORT="$2"; shift 2 ;;
+            --skip-firewall)    ARG_SKIP_FIREWALL=1; shift ;;
             --tls)              ARG_TLS="$2"; shift 2 ;;
             --license)          ARG_LICENSE="$2"; shift 2 ;;
             --telemetry)        ARG_TELEMETRY="$2"; shift 2 ;;
@@ -463,17 +476,80 @@ EOF
     ok "TLS: $TLS_MODE"
 }
 
+# Echo the first bindable port from the args; non-zero exit if none free.
+find_free_port() {
+    local p
+    for p in "$@"; do
+        if check_port_free "$p"; then echo "$p"; return 0; fi
+    done
+    return 1
+}
+
 prompt_port() {
     step "Application port"
     local suggested=$DEFAULT_PORT_TLS
     [[ "$TLS_MODE" == "none" ]] && suggested=$DEFAULT_PORT_HTTP
-    APP_PORT=${ARG_PORT:-$(prompt_text "Port (will be checked for availability)" "$suggested")}
-    [[ "$APP_PORT" =~ ^[0-9]+$ ]] || die "Invalid port: $APP_PORT"
-    (( APP_PORT > 0 && APP_PORT < 65536 )) || die "Port out of range: $APP_PORT"
-    if check_port_free "$APP_PORT"; then
+    local pinned=0
+    [[ -n "$ARG_PORT" ]] && pinned=1
+    local requested=${ARG_PORT:-$(prompt_text "Port (will be checked for availability)" "$suggested")}
+    [[ "$requested" =~ ^[0-9]+$ ]] || die "Invalid port: $requested"
+    (( requested > 0 && requested < 65536 )) || die "Port out of range: $requested"
+    if check_port_free "$requested"; then
+        APP_PORT=$requested
         ok "Port $APP_PORT is free"
+        return 0
+    fi
+    # Busy. Auto-fall-back UNLESS the operator pinned a specific --port (then we
+    # respect it and stop, never silently moving a port they asked for). We
+    # never stop the other service.
+    warn "Port $requested is already in use."
+    if (( pinned )); then
+        die "Port $requested is in use. Free it or pass a different --port (\`ss -tlnp | grep :$requested\`). The installer never stops other services."
+    fi
+    local candidates
+    if [[ "$TLS_MODE" == "none" ]]; then candidates="5000 5001 8081 8082 9080"; else candidates="8443 9443 8444 10443"; fi
+    # shellcheck disable=SC2086
+    APP_PORT=$(find_free_port $candidates) || \
+        die "No free fallback port found (tried: $candidates). Free a port or pass --port N."
+    ok "Using port $APP_PORT instead (the server already serves on $requested). Workstations connect on port $APP_PORT."
+}
+
+# Caddy's HTTP port (container :80) backs the HTTP->HTTPS redirect + the
+# /caddy-ca.crt download. Default host port 80; if taken (existing nginx/apache),
+# fall back; --http-port 0 disables the :80 site (CA served over HTTPS only).
+# Let's Encrypt needs 80 for the ACME HTTP-01 challenge -- warn, don't move it.
+# TLS modes only.
+resolve_http_port() {
+    if [[ "$TLS_MODE" == "none" ]]; then HTTP_PORT=0; return 0; fi
+    step "HTTP port (Caddy redirect + local-CA download)"
+    if [[ "$ARG_HTTP_PORT" == "0" ]]; then
+        HTTP_PORT=0
+        ok "HTTP port disabled (--http-port 0); CA served over HTTPS only."
+        return 0
+    fi
+    local requested=${ARG_HTTP_PORT:-$DEFAULT_CADDY_HTTP_PORT}
+    [[ "$requested" =~ ^[0-9]+$ ]] || die "Invalid --http-port: $requested"
+    if check_port_free "$requested"; then
+        HTTP_PORT=$requested
+        ok "HTTP port $requested is free"
+        return 0
+    fi
+    warn "HTTP port $requested is already in use."
+    if [[ "$TLS_MODE" == "letsencrypt" ]]; then
+        warn "Let's Encrypt needs port 80 reachable for the ACME HTTP-01 challenge."
+        warn "Leaving Caddy bound to 80; make sure the host forwards external :80 to it, or cert issuance fails."
+        HTTP_PORT=80
+        return 0
+    fi
+    if [[ -n "$ARG_HTTP_PORT" ]]; then
+        die "HTTP port $requested is in use. Pass a free --http-port, or --http-port 0 to disable. The installer never stops other services."
+    fi
+    # shellcheck disable=SC2086
+    HTTP_PORT=$(find_free_port 8080 8081 8088 8090 8888) || HTTP_PORT=0
+    if [[ "$HTTP_PORT" == "0" ]]; then
+        warn "No free HTTP port found; disabling Caddy's :80 site. The local CA will be served over HTTPS (curl -k / trust-on-first-use)."
     else
-        die "Port $APP_PORT is already in use. Run \`ss -tlnp | grep :$APP_PORT\` to see what's there, free it, or pick a different port (--port)."
+        ok "Using HTTP port $HTTP_PORT for the redirect + CA download (host's port 80 is taken)."
     fi
 }
 
@@ -670,6 +746,13 @@ EOF
 }
 
 write_caddy_overlay() {
+    # Publish the HTTPS port always; publish the Caddy HTTP port (host HTTP_PORT
+    # -> container 80) only when we secured one. HTTP_PORT=0 means the host's 80
+    # was taken and no free alternative was found -> Caddy runs HTTPS-only.
+    local http_map=""
+    if [[ "$HTTP_PORT" != "0" ]]; then
+        http_map=$'\n      - "'"${HTTP_PORT}"':80"'
+    fi
     cat > "$INSTALL_DIR/docker-compose.tls.yml" <<EOF
 # Caddy reverse proxy overlay — TLS termination.
 services:
@@ -678,8 +761,7 @@ services:
     container_name: ${INSTALL_SLUG}-caddy
     restart: unless-stopped
     ports:
-      - "${APP_PORT}:443"
-      - "80:80"
+      - "${APP_PORT}:443"${http_map}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -700,37 +782,37 @@ ${HOSTNAME_FQDN} {
 }
 EOF
     else
-        # tls internal -- local CA
+        # tls internal -- local CA. Global auto_https disable_redirects so Caddy's
+        # automatic HTTP->HTTPS redirect doesn't shadow /caddy-ca.crt on the HTTP
+        # port (that 308 returns a 0-byte body and breaks the CadBridge CA
+        # bootstrap). CA handler is on the HTTPS site too, so CadBridge's HTTPS
+        # (TOFU) fallback works when the HTTP port is remapped or disabled.
         cat > "$INSTALL_DIR/Caddyfile" <<EOF
 {
-    # Caddy's auto-HTTPS adds an automatic HTTP->HTTPS redirect handler for
-    # any hostname that has an HTTPS site block. That handler runs in addition
-    # to our explicit \`http://\${HOSTNAME_FQDN}\` block below, and the auto-
-    # redirect WINS hostname matching for /caddy-ca.crt -- workstations follow
-    # 308 to HTTPS but don't trust the cert yet (that's what they're trying to
-    # install) -> 0-byte download -> Setup.bat aborts.
-    # Disabling the auto-redirect leaves us free to handle port 80 ourselves.
-    # Cert management itself is unaffected.
     auto_https disable_redirects
 }
 
 ${HOSTNAME_FQDN} {
     tls internal
-    reverse_proxy app:5000
+    handle /caddy-ca.crt {
+        root * /data/caddy/pki/authorities/local
+        rewrite * /root.crt
+        file_server
+    }
+    handle {
+        reverse_proxy app:5000
+    }
 }
+EOF
+        # Explicit http://<host> site for the HTTP-port CA download + redirect,
+        # only when we have an HTTP port. Use \`http://\${HOSTNAME_FQDN}\` (not a
+        # bare \`:80\`, which auto-HTTPS still shadows). The redirect lives in a
+        # catch-all \`handle {}\` so the specific \`handle /caddy-ca.crt\` wins
+        # (Caddy orders a top-level \`redir\` before \`handle\`).
+        if [[ "$HTTP_PORT" != "0" ]]; then
+            cat >> "$INSTALL_DIR/Caddyfile" <<EOF
 
 # Expose the local CA over HTTP so first-time workstations can fetch it.
-# Use \`http://\${HOSTNAME_FQDN}\` (not bare \`:80\`) so Caddy treats this
-# as an explicit HTTP-only site for the same hostname.
-#
-# IMPORTANT: redir MUST live inside a catch-all \`handle {}\` block (no
-# matcher), NOT at the site-block top level. Caddy's directive ordering
-# puts a top-level \`redir /*\` BEFORE \`handle /caddy-ca.crt\` in the
-# generated route list, so the redir would catch /caddy-ca.crt first
-# and never let the handle block fire (verified via \`caddy adapt\` JSON).
-# Two sibling \`handle\` blocks are mutually exclusive: the more specific
-# /caddy-ca.crt match wins for that path; the empty-matcher catch-all
-# handles everything else.
 http://${HOSTNAME_FQDN} {
     handle /caddy-ca.crt {
         root * /data/caddy/pki/authorities/local
@@ -742,6 +824,7 @@ http://${HOSTNAME_FQDN} {
     }
 }
 EOF
+        fi
     fi
 }
 
@@ -978,6 +1061,49 @@ install_systemd_service() {
     ok "${INSTALL_SLUG}.service enabled at boot"
 }
 
+# Open the gateway's published ports in the host firewall (best-effort,
+# non-fatal). Linux differs from Windows: Docker (engine) inserts its own
+# iptables DOCKER-chain rules for published ports, which BYPASS ufw's filter
+# chain, so ufw-published ports are usually already reachable and `ufw allow`
+# is often a no-op (we still add it for hosts where it matters + to document
+# intent). firewalld interacts with Docker more directly. We act only when a
+# firewall is active and never stop on failure.
+open_firewall() {
+    if [[ $ARG_SKIP_FIREWALL -eq 1 ]]; then
+        substep "Skipping firewall rules (--skip-firewall)."
+        return 0
+    fi
+    local ports="$APP_PORT"
+    if [[ "$TLS_MODE" != "none" && "$HTTP_PORT" != "0" ]]; then
+        ports="$ports $HTTP_PORT"
+    fi
+    if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -qi "Status: active"; then
+        step "Opening firewall ports (ufw)"
+        local p
+        for p in $ports; do
+            if ufw allow "${p}/tcp" >/dev/null 2>&1; then
+                ok "ufw allow ${p}/tcp"
+            else
+                warn "ufw allow ${p}/tcp failed; add it by hand if LAN clients can't connect."
+            fi
+        done
+        substep "Note: Docker publishes ports below ufw's filter chain, so they are usually reachable even without this rule."
+    elif command -v firewall-cmd &>/dev/null && firewall-cmd --state 2>/dev/null | grep -qi running; then
+        step "Opening firewall ports (firewalld)"
+        local p
+        for p in $ports; do
+            if firewall-cmd --permanent --add-port="${p}/tcp" >/dev/null 2>&1; then
+                ok "firewalld add-port ${p}/tcp"
+            else
+                warn "firewalld add-port ${p}/tcp failed; add it by hand if LAN clients can't connect."
+            fi
+        done
+        firewall-cmd --reload >/dev/null 2>&1 || warn "firewall-cmd --reload failed; run it manually."
+    else
+        substep "No active ufw/firewalld detected; relying on Docker's published ports (no firewall change)."
+    fi
+}
+
 start_stack() {
     step "Pulling images + starting containers (~30-60 s)"
     cd "$INSTALL_DIR"
@@ -1082,10 +1208,18 @@ ${C_BOLD}${C_GREEN}✅ 3DX Gateway installed.${C_RESET}
 
 EOF
     if [[ "$TLS_MODE" == "auto" ]]; then
+        local ca_cmd
+        if [[ "$HTTP_PORT" == "0" ]]; then
+            ca_cmd="curl -k -O https://${HOSTNAME_FQDN}:${APP_PORT}/caddy-ca.crt"
+        elif [[ "$HTTP_PORT" == "80" ]]; then
+            ca_cmd="curl -O http://${HOSTNAME_FQDN}/caddy-ca.crt"
+        else
+            ca_cmd="curl -O http://${HOSTNAME_FQDN}:${HTTP_PORT}/caddy-ca.crt"
+        fi
         cat <<EOF
   ${C_BOLD}TLS (local CA):${C_RESET}  Each workstation must install the Caddy CA once.
                     On the workstation, run as admin:
-                      curl -O http://${HOSTNAME_FQDN}/caddy-ca.crt
+                      ${ca_cmd}
                       certutil -addstore -f Root caddy-ca.crt
                     CadBridge Setup.bat does this automatically.
 
@@ -1124,7 +1258,8 @@ confirm_summary() {
   ${C_BOLD}Ready to install:${C_RESET}
     install dir:  $INSTALL_DIR
     hostname:     $HOSTNAME_FQDN
-    port:         $APP_PORT
+    port (HTTPS): $APP_PORT
+    $([[ "$TLS_MODE" != "none" ]] && echo "port (HTTP):  $([[ "$HTTP_PORT" == "0" ]] && echo "disabled (CA over HTTPS)" || echo "$HTTP_PORT (Caddy redirect + CA download)")")
     TLS:          $TLS_MODE
     license:      ${LICENSE_PATH:-"(pending -- add later from Solfins email)"}
     telemetry:    $TELEMETRY_ENABLED
@@ -1147,6 +1282,7 @@ main() {
     prompt_hostname
     prompt_tls_mode
     prompt_port
+    resolve_http_port
     detect_existing_install
     prompt_license
     prompt_telemetry
@@ -1163,6 +1299,7 @@ main() {
     install_helper_files
     install_systemd_service
     start_stack
+    open_firewall
     smoke_test
     print_summary
 }
