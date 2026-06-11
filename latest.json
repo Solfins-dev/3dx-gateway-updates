@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.89",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.89/CadBridge-Setup.zip",
-    "changelog": "The CadBridge installer now installs the gateway's security certificate even when the server already uses port 80 for another service (e.g. IIS): Setup tries the gateway's HTTPS address and alternative HTTP ports automatically, so it no longer fails with a 404 during certificate install.",
-    "sha256": "61544caac2e662353def55f7f5eb7de8fdc4d58f200d120f4563623c52bdb35d"
+    "version": "1.8.90",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.90/CadBridge-Setup.zip",
+    "changelog": "The CadBridge installer now reliably installs the gateway security certificate on servers that already run other web services on port 80 (such as IIS): it fetches the CA over the gateway HTTPS address and alternative HTTP ports, with a TLS 1.2 fallback.",
+    "sha256": "21cc425e2f2c54bc466761df0b6b4677c7d7ed2c5e9ac53ba5e36c8dd73f5666"
   }
 }
