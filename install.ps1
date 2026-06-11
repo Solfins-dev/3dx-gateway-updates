@@ -67,6 +67,12 @@ Opt in to WSL kernel + Docker Desktop maintenance updates during the run. OFF by
 default: updating a healthy engine mid-install has bricked it before. Only pass
 this when you actually intend to upgrade Docker.
 
+.PARAMETER SkipFirewall
+Don't add Windows Firewall inbound-allow rules for the published ports. By
+default the installer opens exactly the gateway's HTTPS + HTTP ports so LAN
+clients can connect (Docker Desktop does this on workstations but not on
+Server). Pass this if you manage the firewall externally.
+
 .PARAMETER Yes
 Unattended: skip all confirmation prompts and use defaults for unanswered.
 
@@ -100,6 +106,7 @@ param(
     [string]$Helper,
     [switch]$Force,
     [switch]$UpdateDocker,
+    [switch]$SkipFirewall,
     [switch]$Yes,
     [switch]$DryRun
 )
@@ -118,7 +125,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
 # Constants
-$INSTALLER_VERSION   = '1.7.0'
+$INSTALLER_VERSION   = '1.7.1'
 $DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
 $WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
@@ -1399,6 +1406,30 @@ function Get-ComposeFlags {
     return $flags
 }
 
+function Set-FirewallRules {
+    # Docker Desktop adds inbound firewall rules for published ports on a
+    # workstation, but on Windows Server the published ports (0.0.0.0:PORT) are
+    # routinely blocked by the host firewall, so LAN clients get
+    # ERR_CONNECTION_TIMED_OUT even though the stack is healthy. Open exactly the
+    # ports we published -- nothing wider. Idempotent (same-named rule removed
+    # first) and non-fatal (a disabled firewall service must not abort install).
+    if ($SkipFirewall) { Write-Substep "Skipping firewall rules (-SkipFirewall)."; return }
+    Write-Step "Opening Windows Firewall for the gateway ports"
+    $ports = @($Script:EffPort)
+    if ($Script:EffTls -ne 'none' -and $Script:EffHttpPort -ne 0) { $ports += $Script:EffHttpPort }
+    foreach ($p in $ports) {
+        $name = "3DX Gateway TCP $p"
+        try {
+            Get-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+            New-NetFirewallRule -DisplayName $name -Direction Inbound -Protocol TCP -LocalPort $p -Action Allow -Profile Any -ErrorAction Stop | Out-Null
+            Write-Ok "Inbound TCP $p allowed ('$name')"
+        } catch {
+            Write-Warn2 "Could not add firewall rule for TCP $p`: $($_.Exception.Message)"
+            Write-Substep "Add it by hand if LAN clients can't connect: New-NetFirewallRule -DisplayName '$name' -Direction Inbound -Protocol TCP -LocalPort $p -Action Allow"
+        }
+    }
+}
+
 function Start-Stack {
     Write-Step "Pulling images + starting containers (this takes 30-90 s)"
     Push-Location $Script:EffInstallDir
@@ -1640,6 +1671,7 @@ function Main {
     Install-Helper
     Write-Files
     Start-Stack
+    Set-FirewallRules
     Invoke-SmokeTest
     Show-Summary
 }
