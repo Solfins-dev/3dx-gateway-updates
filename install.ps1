@@ -85,7 +85,7 @@ PS> & $env:TEMP\install.ps1
 
 .EXAMPLE
 # Unattended
-PS> & $env:TEMP\install.ps1 -Hostname gateway.acme.local -License C:\tmp\acme.lic -Yes
+PS> & $env:TEMP\install.ps1 -Hostname gateway.example.com -License C:\tmp\example.lic -Yes
 
 .LINK
 https://github.com/Solfins-dev/3dx-gateway-updates/blob/main/INSTALL.md
