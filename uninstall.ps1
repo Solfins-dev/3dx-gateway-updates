@@ -58,7 +58,7 @@ $ErrorActionPreference = 'Stop'
 # during a teardown and must not abort the rest of the cleanup. See install.ps1.
 $PSNativeCommandUseErrorActionPreference = $false
 
-$UNINSTALLER_VERSION = '1.7.0'
+$UNINSTALLER_VERSION = '1.7.1'
 $STATE_DIR  = 'C:\ProgramData\3dx-gateway'           # helper token/status dir
 $TASK_NAME  = '3dx-gateway-helper'
 $CONTAINERS = @('3dx-gateway-app', '3dx-gateway-db', '3dx-gateway-caddy')
@@ -172,6 +172,23 @@ function Remove-GatewayImages {
     }
 }
 
+function Remove-FirewallRules {
+    # Remove the inbound-allow rules install.ps1 v1.7.1+ added ("3DX Gateway TCP
+    # <port>"). Non-fatal. Wildcard match catches whatever port the install
+    # picked (443/8443/8081/...).
+    Write-Step "Removing gateway firewall rules"
+    try {
+        $rules = Get-NetFirewallRule -DisplayName '3DX Gateway TCP *' -ErrorAction SilentlyContinue
+        if (-not $rules) { Write-Substep "No '3DX Gateway TCP *' rules present."; return }
+        foreach ($r in $rules) {
+            Remove-NetFirewallRule -Name $r.Name -ErrorAction SilentlyContinue
+            Write-Ok "removed firewall rule '$($r.DisplayName)'"
+        }
+    } catch {
+        Write-Warn2 "Could not remove firewall rules: $($_.Exception.Message)"
+    }
+}
+
 function Remove-HelperTask {
     Write-Step "Removing Apply Update helper Scheduled Task"
     $task = Get-ScheduledTask -TaskName $TASK_NAME -ErrorAction SilentlyContinue
@@ -217,6 +234,7 @@ function Main {
     Write-Host "    - volumes:      $(if ($KeepData) { 'KEPT (-KeepData)' } else { 'REMOVED (database + settings wiped)' })"
     Write-Host "    - images:       $(if ($RemoveImages) { 'REMOVED (-RemoveImages)' } else { 'kept' })"
     Write-Host "    - helper task:  $TASK_NAME"
+    Write-Host "    - firewall:     '3DX Gateway TCP *' inbound rules"
     Write-Host "    - install dir:  $InstallDir"
     Write-Host "    - state dir:    $STATE_DIR"
     Write-Host '  It does NOT touch IIS or any other service.'
@@ -230,6 +248,7 @@ function Main {
     Remove-ContainersByName
     Remove-VolumesByName
     Remove-GatewayImages
+    Remove-FirewallRules
     Remove-HelperTask
     Remove-Dir -Path $InstallDir -Label 'Install dir'
     Remove-Dir -Path $STATE_DIR  -Label 'Helper state dir'
