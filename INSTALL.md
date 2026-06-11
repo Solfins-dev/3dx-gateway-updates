@@ -367,6 +367,12 @@ time.
 
 ### 2.2 Configure Pantheon (if you have it)
 
+Pantheon has **two** connection blocks: a REST API (required for everything)
+and a direct SQL Server connection (only needed if you sync manufacturing
+BOMs).
+
+#### REST API — required
+
 `Settings → Pantheon`:
 - **BaseUrl**: your Pantheon REST endpoint, e.g. `http://pantheon.yourcompany.local:9001`
 - **Username + Password**: API user credentials (passwords are encrypted at rest with a per-deployment seed)
@@ -376,6 +382,39 @@ time.
   field mapping; ask support@solfins.com if you need a copy.
 
 Click **Test connection** to verify the credentials before saving.
+
+#### SQL Server (MF BOM) — only if you sync manufacturing BOMs
+
+The MF BOM sync path writes to `tHF_SetPrSt` directly through the
+`pHF_SpecificationImport` stored procedure — that is **not** the REST API
+surface and needs its own SQL Server connection:
+
+- **Server**: SQL Server instance, e.g. `SQL01.yourcompany.local\PANTHEONDB`
+- **Database**: e.g. `3DEXPERIENCE`
+- **Username / Password**: SQL login or Windows account with `EXEC` on
+  `pHF_SpecificationImport`
+
+> **Linux Docker hosts: use the FQDN form for the SQL Server instance.**
+> A Docker container on Linux has no NetBIOS / WINS resolution, so a short
+> NetBIOS host name like `SQL01\PANTHEONDB` raises
+> `SQL error 26 — Error Locating Server/Instance Specified` on **Test
+> connection**, even though the same name works fine from Windows clients
+> on the same LAN. Two fixes, in order of preference:
+>
+> 1. **FQDN form** — `SQL01.yourcompany.local\PANTHEONDB`. Works whenever
+>    SQL Browser (UDP 1434) is reachable from the Docker bridge network.
+> 2. **Direct TCP fallback** — `SQL01.yourcompany.local,49172`
+>    (host comma port, no instance name). Use this when SQL Browser is
+>    blocked, which is common on hardened internal networks. The dynamic
+>    TCP port lives in *SQL Server Configuration Manager → SQL Server
+>    Network Configuration → Protocols for &lt;instance&gt; → TCP/IP →
+>    IP Addresses → IPAll → TCP Dynamic Port*. Pin it to a static value
+>    if your DBA hasn't already, otherwise the port shuffles on every
+>    SQL service restart and the connection silently breaks.
+>
+> See [integrations.md §Pantheon ERP](integrations.md#pantheon-erp-active)
+> for the underlying diagnostic. The same gotcha bites any Linux
+> container reaching a Windows-named SQL instance — not just ours.
 
 ### 2.3 Other integrations
 
@@ -771,6 +810,92 @@ Get-ChildItem -Recurse | Unblock-File
 The tray agent listens on `localhost:5170`. If the green icon isn't
 showing, the agent crashed — check `%APPDATA%\CadBridge\logs\` for the
 last 50 lines of `tray.log` and contact support.
+
+### Windows Server install gotchas (observed on a DelmiaWorks ERP host)
+
+These bite when the gateway is installed onto an **already-populated**
+Windows Server (e.g. one already running IIS / DelmiaWorks WebDirect),
+especially inside an ESXi/Hyper-V VM.
+
+> **Resolved in installer v1.7.0** (2026-06-11). The installer now handles all
+> of the below automatically: it assumes the server may already be serving
+> production and works *around* it, never stopping another service.
+> - **Ports:** a read-only pre-flight scans 80/443/8080 + WinNAT/http.sys
+>   reserved ranges + IIS sites. If the HTTPS port (443) is taken it
+>   auto-falls-back to 8443 (then 9443); if Caddy's HTTP port (80) is taken it
+>   auto-falls-back to 8080/8081/... and, if **80 and 8080 are both taken**,
+>   keeps climbing (8081, 8088, ...) or serves the local CA over HTTPS when no
+>   HTTP port is free. Pin with `-Port` / `-HttpPort`, disable the :80 site with
+>   `-HttpPort 0`.
+> - **Docker/WSL updates** are now opt-in (`-UpdateDocker`, default off) so a
+>   healthy engine is never touched mid-install; the Docker Desktop installer's
+>   exit code 3 is treated as a clean reboot gate, not a fatal error.
+> - **Optional helper** failures (the `-ComposeFiles` quoting bug) no longer
+>   abort the install -- the helper is skipped with a warning.
+> - **PS7** no longer aborts on the benign `docker image inspect` "No such
+>   image" check.
+> - **Resumable:** re-run with `-Force` to re-apply over a half-finished install
+>   (`.env` secrets, `appsettings.json` and a real `license.lic` are preserved)
+>   -- no more manual `Remove-Item C:\ProgramData\3DX-Gateway`.
+>
+> To wipe a previous install cleanly before reinstalling, run **`uninstall.bat`**
+> (Run as administrator): it tears down the containers + volumes + the Apply
+> Update Scheduled Task and removes both `C:\ProgramData\3DX-Gateway` and
+> `C:\ProgramData\3dx-gateway`. Flags: `-KeepData` (keep the database),
+> `-RemoveImages` (also delete pulled images), `-Yes` (no prompt). It never
+> stops IIS or any other service.
+
+The manual workarounds below apply only to **pre-1.7.0** installers:
+
+- **Installer aborts right after `wsl --update` / Docker Desktop update.**
+  Symptoms: Docker Desktop pops *"There was a problem with WSL"*
+  (`wsl.exe --version` → *"The file cannot be accessed by the system"*),
+  the engine stops, and the Docker Desktop updater exits with code 3
+  (*reboot required*). **Fix:** `wsl --shutdown` then `Restart-Computer`.
+  After the reboot, start Docker Desktop, confirm `docker info` shows a
+  `Server:` section, then re-run the installer (answer **N** to the
+  "Update Docker Desktop?" prompt — it's already current).
+
+- **`install-helper.ps1 : A positional parameter cannot be found that
+  accepts argument 'docker-compose.tls.yml'.`** The optional Apply Update
+  helper step fails and aborts the whole install. **Fix:** re-run the
+  installer with the helper disabled — `install.ps1 -Helper off`. Wire the
+  helper later by hand: `scripts\host\install-helper.ps1 -InstallDir
+  'C:\ProgramData\3DX-Gateway' -ComposeFiles "docker-compose.yml
+  docker-compose.tls.yml"` (note the **quotes** around the compose list).
+
+- **`Seeding appsettings.json` aborts with `No such image`.** Under
+  PowerShell 7 the benign "image not pulled yet" check is treated as a
+  terminating error. **Fix:** pull the image first —
+  `docker pull ghcr.io/solfins-dev/3dx-gateway:latest` — then re-run the
+  installer (clean the partial dir first if the idempotency guard refuses:
+  `Remove-Item -Recurse -Force C:\ProgramData\3DX-Gateway`).
+
+- **Caddy fails to start: `bind: An attempt was made to access a socket in
+  a way forbidden by its access permissions` on port 80.** Port 80 (and
+  often 8080 / 443) is already taken — usually **IIS / http.sys** (check
+  `Get-NetTCPConnection -LocalPort 80 -State Listen` → owning PID 4
+  `System`), occasionally a **WinNAT reserved port range**
+  (`netsh interface ipv4 show excludedportrange protocol=tcp`). The app +
+  Postgres containers come up fine; only Caddy is blocked. **Decide
+  first** whether the conflicting service is production:
+  - **Not needed** (default IIS site): `Stop-Service W3SVC -Force` +
+    `Set-Service W3SVC -StartupType Disabled`, then bring Caddy up:
+    `cd C:\ProgramData\3DX-Gateway; docker compose -f docker-compose.yml
+    -f docker-compose.tls.yml up -d`.
+  - **Production (don't touch it):** reinstall the gateway on a free port
+    instead — clean the dir and re-run with e.g. `-Port 8443 -Tls none`
+    (or reverse-proxy the gateway behind the existing IIS). Workstations
+    then reach it at `https://<host>:8443/`.
+  - **WinNAT reservation:** `net stop winnat` + `netsh int ipv4 add
+    excludedportrange protocol=tcp startport=80 numberofports=1
+    store=persistent` + `net start winnat`.
+
+> **Tip:** before installing onto a server that already hosts other web
+> services, check port availability up front:
+> `Get-NetTCPConnection -LocalPort 80,443,8080 -State Listen` and
+> `netsh http show servicestate view=requestq`. If 80/443 are taken,
+> install on a custom port from the start.
 
 ---
 
