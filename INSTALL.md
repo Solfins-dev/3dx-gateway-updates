@@ -817,9 +817,13 @@ These bite when the gateway is installed onto an **already-populated**
 Windows Server (e.g. one already running IIS / DelmiaWorks WebDirect),
 especially inside an ESXi/Hyper-V VM.
 
-> **Resolved in installer v1.7.0** (2026-06-11). The installer now handles all
-> of the below automatically: it assumes the server may already be serving
-> production and works *around* it, never stopping another service.
+> **Resolved in installer v1.7.0 / v1.7.1** (2026-06-11). The installer now
+> handles all of the below automatically: it assumes the server may already be
+> serving production and works *around* it, never stopping another service.
+> - **Firewall (v1.7.1):** opens inbound TCP for exactly the published HTTPS +
+>   HTTP ports ("3DX Gateway TCP <port>" rules) so LAN clients don't get
+>   ERR_CONNECTION_TIMED_OUT -- Docker Desktop does this on a workstation but
+>   not on Server. Skip with `-SkipFirewall`; `uninstall.bat` removes the rules.
 > - **Ports:** a read-only pre-flight scans 80/443/8080 + WinNAT/http.sys
 >   reserved ranges + IIS sites. If the HTTPS port (443) is taken it
 >   auto-falls-back to 8443 (then 9443); if Caddy's HTTP port (80) is taken it
