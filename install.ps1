@@ -34,7 +34,16 @@ Install location. Default: C:\ProgramData\3DX-Gateway
 Gateway FQDN workstations will use. Default: auto-detect via [System.Net.Dns]::GetHostEntry.
 
 .PARAMETER Port
-HTTPS port (default 443) or HTTP if -Tls none (default 5000).
+HTTPS port (default 443) or HTTP if -Tls none (default 5000). If the chosen
+port is already in use (e.g. IIS on 443) the installer auto-falls-back to a
+free port (8443 family) UNLESS you pin -Port, in which case it stops rather
+than silently moving a port you asked for.
+
+.PARAMETER HttpPort
+Host port mapped to Caddy's :80 site (HTTP->HTTPS redirect + local-CA download),
+TLS modes only. Default 80. If 80 is taken by IIS/http.sys the installer
+auto-falls-back to a free port (8080 family); pass -HttpPort 0 to disable the
+:80 site entirely (CA is then served over HTTPS). Never used with -Tls none.
 
 .PARAMETER Tls
 TLS mode: auto | letsencrypt | none. Default: auto.
@@ -47,6 +56,16 @@ Path to license.lic from Solfins. Required.
 
 .PARAMETER Telemetry
 on | off. Anonymous hourly version ping. Default: on.
+
+.PARAMETER Force
+Re-apply over an existing install at -InstallDir instead of stopping. .env
+secrets, appsettings.json and a real license.lic are preserved; compose files
++ Caddyfile are regenerated and the stack is restarted.
+
+.PARAMETER UpdateDocker
+Opt in to WSL kernel + Docker Desktop maintenance updates during the run. OFF by
+default: updating a healthy engine mid-install has bricked it before. Only pass
+this when you actually intend to upgrade Docker.
 
 .PARAMETER Yes
 Unattended: skip all confirmation prompts and use defaults for unanswered.
@@ -71,6 +90,7 @@ param(
     [string]$InstallDir,
     [string]$Hostname,
     [int]$Port,
+    [int]$HttpPort,
     [ValidateSet('auto', 'letsencrypt', 'none')]
     [string]$Tls,
     [string]$License,
@@ -78,14 +98,27 @@ param(
     [string]$Telemetry,
     [ValidateSet('on', 'off')]
     [string]$Helper,
+    [switch]$Force,
+    [switch]$UpdateDocker,
     [switch]$Yes,
     [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
 
+# PowerShell 7+ turns a native (non-PowerShell) command's non-zero exit into a
+# TERMINATING error when $PSNativeCommandUseErrorActionPreference is $true,
+# which is the PS7 default. This installer checks $LASTEXITCODE explicitly after
+# every native call (docker, wsl, netsh, net), so that PS7 behaviour is wrong
+# for us: a benign `docker image inspect` "No such image" (exit 1) would throw
+# BEFORE we reach the $LASTEXITCODE check -- even with 2>$null -- and abort the
+# whole install. Force it off so native exits stay non-terminating exactly like
+# under Windows PowerShell 5.1. Harmless no-op on 5.1 (the variable just doesn't
+# exist there, so this assignment creates an unused local).
+$PSNativeCommandUseErrorActionPreference = $false
+
 # Constants
-$INSTALLER_VERSION   = '1.6.1'
+$INSTALLER_VERSION   = '1.7.0'
 $DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
 $WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
@@ -100,7 +133,9 @@ $MIN_RAM_MB          = 1800
 $Script:EffInstallDir       = $null
 $Script:EffHostname         = $null
 $Script:EffPort             = $null
+$Script:EffHttpPort         = $null
 $Script:EffTls              = $null
+$Script:ReuseInstall        = $false
 $Script:EffLicense          = $null
 $Script:EffTelemetry        = $null
 $Script:EffHelper           = $null
@@ -324,6 +359,25 @@ function Install-DockerDesktop {
 
     $dst = Get-DockerDesktopInstaller
     $exit = Invoke-DockerDesktopInstaller -InstallerPath $dst -Action 'Installing'
+    if ($exit -eq 3 -or $exit -eq 3010) {
+        # Docker Desktop's installer signals "reboot required" with exit 3
+        # (3010 = the MSI ERROR_SUCCESS_REBOOT_REQUIRED equivalent). This is NOT
+        # a failure: the bits are installed, the engine just can't start until
+        # the box reboots. Treat it like the WSL2 reboot gate -- a clean stop
+        # with a resume instruction, not a scary error.
+        Write-Hr
+        Write-Host ''
+        Write-Host '  REBOOT REQUIRED (Docker Desktop)' -ForegroundColor Yellow
+        Write-Host ''
+        Write-Host '  Docker Desktop installed but needs a reboot before its engine starts.'
+        Write-Host '  After the reboot:'
+        Write-Host ''
+        Write-Host '    1. Open an elevated PowerShell'
+        Write-Host '    2. Re-run the same install command -- it detects Docker is now'
+        Write-Host '       present and continues from here.'
+        Write-Host ''
+        Throw-Stop "Reboot now (Restart-Computer) and re-run this script."
+    }
     if ($exit -ne 0) {
         Throw-Stop "Docker Desktop installer exited with code $exit. Run the installer manually for diagnostics: $dst"
     }
@@ -505,22 +559,27 @@ function Test-Docker {
     $v = (docker version --format '{{.Server.Version}}' 2>$null)
     Write-Ok "Docker $v ($Script:DockerFlavor, daemon running)"
 
-    # Auto-update path for already-installed Docker. WSL kernel update is
-    # silent + idempotent; Docker Desktop in-place upgrade is opt-in (default
-    # N) because it's a 600 MB download we don't want to repeat on every
-    # install.ps1 re-run.
-    if (Test-WSL2Ready) {
-        Update-WSL
-    }
-    if ($Script:DockerFlavor -eq 'desktop') {
-        $yn = Read-YesNo "Update Docker Desktop to latest? (~600 MB download, ~5 min)" "n"
-        if ($yn -eq 'y') {
-            Update-DockerDesktop
-            $v = (docker version --format '{{.Server.Version}}' 2>$null)
-            Write-Ok "Docker now $v"
+    # Maintenance updates (WSL kernel + Docker Desktop) are OPT-IN via
+    # -UpdateDocker. They are deliberately OFF by default: updating WSL / Docker
+    # Desktop mid-install on a box whose engine is already healthy has bricked
+    # the engine (WSL bump -> "file cannot be accessed by the system" + "Docker
+    # Engine stopped", installer returns reboot-required) and turned a routine
+    # re-run into a recovery. A working engine is left untouched; pass
+    # -UpdateDocker explicitly when you actually want to upgrade.
+    if ($UpdateDocker) {
+        if (Test-WSL2Ready) { Update-WSL }
+        if ($Script:DockerFlavor -eq 'desktop') {
+            $yn = Read-YesNo "Update Docker Desktop to latest? (~600 MB download, ~5 min)" "n"
+            if ($yn -eq 'y') {
+                Update-DockerDesktop
+                $v = (docker version --format '{{.Server.Version}}' 2>$null)
+                Write-Ok "Docker now $v"
+            }
+        } elseif ($Script:DockerFlavor -in 'mirantis','engine') {
+            Write-Substep "Update path for $($Script:DockerFlavor) is engine-managed; skipping auto-update."
         }
-    } elseif ($Script:DockerFlavor -in 'mirantis','engine') {
-        Write-Substep "Update path for $($Script:DockerFlavor) is engine-managed; skipping auto-update."
+    } else {
+        Write-Substep "Skipping WSL/Docker maintenance updates (pass -UpdateDocker to enable). A healthy engine is left as-is."
     }
 
     # docker compose v2 plugin
@@ -567,6 +626,99 @@ function Test-PortFree {
     return ($null -eq $conn -or $conn.Count -eq 0)
 }
 
+function Get-ExcludedPortRanges {
+    # TCP port ranges Windows has RESERVED (WinNAT / Hyper-V / http.sys). A port
+    # inside one of these can't be bound by Docker's userland proxy even when
+    # nothing is currently listening -- the bind fails with WSAEACCES. On a
+    # Windows Server running Docker Desktop these ranges routinely swallow 80.
+    # Parse `netsh interface ipv4 show excludedportrange protocol=tcp`.
+    $ranges = @()
+    try {
+        $out = & netsh interface ipv4 show excludedportrange protocol=tcp 2>$null
+        foreach ($line in $out) {
+            if ($line -match '^\s*(\d+)\s+(\d+)') {
+                $ranges += [pscustomobject]@{ Start = [int]$Matches[1]; End = [int]$Matches[2] }
+            }
+        }
+    } catch { }
+    return $ranges
+}
+
+function Test-PortExcluded {
+    param([int]$P, $Ranges)
+    if (-not $Ranges) { return $false }
+    foreach ($r in $Ranges) {
+        if ($P -ge $r.Start -and $P -le $r.End) { return $true }
+    }
+    return $false
+}
+
+function Test-PortBindable {
+    # Bindable = nothing is listening AND it isn't inside a reserved/excluded
+    # TCP range. The exclusion check is the non-obvious half: on Windows Server
+    # + Docker Desktop, WinNAT and http.sys reserve ranges (often covering 80)
+    # that fail to bind with WSAEACCES even though Get-NetTCPConnection shows no
+    # listener. Pass a cached $Ranges to avoid re-shelling netsh on every probe.
+    param([int]$P, $Ranges = $null)
+    if (-not (Test-PortFree -P $P)) { return $false }
+    if ($null -eq $Ranges) { $Ranges = Get-ExcludedPortRanges }
+    if (Test-PortExcluded -P $P -Ranges $Ranges) { return $false }
+    return $true
+}
+
+function Get-PortOwner {
+    # Best-effort human description of what holds a TCP port. READ-ONLY -- the
+    # installer never stops whatever it finds. PID 4 / "System" means the port
+    # lives in http.sys (the kernel HTTP stack), which on a Windows Server is
+    # almost always IIS (W3SVC) or WinRM, not a stoppable user process.
+    param([int]$P)
+    $owners = @()
+    $conns = Get-NetTCPConnection -LocalPort $P -State Listen -ErrorAction SilentlyContinue
+    foreach ($c in $conns) {
+        $procName = try { (Get-Process -Id $c.OwningProcess -ErrorAction Stop).ProcessName } catch { 'unknown' }
+        if ($c.OwningProcess -eq 4 -or $procName -eq 'System') {
+            $owners += 'http.sys/kernel (PID 4 System -- usually IIS/W3SVC or WinRM)'
+        } else {
+            $owners += "$procName (PID $($c.OwningProcess))"
+        }
+    }
+    $owners = @($owners | Select-Object -Unique)
+    if ($owners.Count -eq 0) { return $null }
+    return ($owners -join ', ')
+}
+
+function Show-ServerPortPreflight {
+    # Read-only lay-of-the-land for the operator. The installer ASSUMES the
+    # server may already be serving production (IIS/DelmiaWorks on 80/443/8080)
+    # and works AROUND it -- it never stops another service. This step just
+    # reports what's there so the auto-fallback choices downstream make sense.
+    Write-Step "Scanning ports already in use (read-only; nothing is stopped)"
+    $ranges = Get-ExcludedPortRanges
+    foreach ($p in @(80, 443, 8080)) {
+        $owner = Get-PortOwner -P $p
+        if ($owner) {
+            Write-Warn2 "Port $p is in use by $owner"
+        } elseif (Test-PortExcluded -P $p -Ranges $ranges) {
+            Write-Warn2 "Port $p is inside a reserved TCP range (WinNAT/http.sys)"
+        } else {
+            Write-Substep "Port $p is free"
+        }
+    }
+    # IIS is the usual owner of 80/443 on a Windows Server. Get-Website only
+    # exists when the WebAdministration module / IIS is present; absence is fine.
+    try {
+        $sites = Get-Website -ErrorAction SilentlyContinue
+        if ($sites) {
+            Write-Substep "IIS detected -- the installer will pick free ports around it, never stop it:"
+            foreach ($s in $sites) {
+                $binds = ($s.bindings.Collection.bindingInformation -join ', ')
+                Write-Substep "  IIS site '$($s.Name)' state=$($s.State) bindings=$binds"
+            }
+        }
+    } catch { }
+    Write-Substep "Gateway ports are auto-selected from what's free; IIS and other services are left untouched."
+}
+
 #--- Interactive prompts ----------------------------------------------------
 
 # Returns 'y' or 'n'. In -Yes mode returns the default.
@@ -594,7 +746,21 @@ function Resolve-InstallDir {
         Read-TextPrompt "Install directory" $DEFAULT_INSTALL_DIR
     }
     if (Test-Path (Join-Path $Script:EffInstallDir 'docker-compose.yml')) {
-        Throw-Stop "An install already exists at $($Script:EffInstallDir) (docker-compose.yml present). Remove it first or pick a different -InstallDir."
+        # Resumable: an earlier run that died mid-way (e.g. on the Caddy port
+        # bind) leaves docker-compose.yml behind, and the old hard-stop forced
+        # the operator to manually `Remove-Item C:\ProgramData\3DX-Gateway`
+        # before they could try again. Instead, offer to re-apply over it.
+        # New-ConfigProtectorSeed preserves the .env seed, Initialize-AppSettings
+        # preserves appsettings.json, and Write-Files now preserves a real
+        # license.lic -- so re-applying is safe.
+        $reapply = $Force.IsPresent -or `
+            ((Read-YesNo "An install already exists at $($Script:EffInstallDir). Re-apply config + restart over it? (.env secrets, appsettings.json and a real license.lic are preserved)" 'n') -eq 'y')
+        if ($reapply) {
+            Write-Warn2 "Re-applying over the existing install at $($Script:EffInstallDir)."
+            $Script:ReuseInstall = $true
+        } else {
+            Throw-Stop "Install already exists at $($Script:EffInstallDir). Re-run with -Force to update it in place, or pick a different -InstallDir."
+        }
     }
     Write-Ok "Will install to: $($Script:EffInstallDir)"
 }
@@ -664,18 +830,93 @@ function Resolve-TlsMode {
 
 function Resolve-Port {
     Write-Step "Application port"
+    $ranges = Get-ExcludedPortRanges
     $suggested = if ($Script:EffTls -eq 'none') { $DEFAULT_PORT_HTTP } else { $DEFAULT_PORT_TLS }
-    $Script:EffPort = if ($Port) { $Port } else {
+    $pinned = ($PSBoundParameters.ContainsKey('Port') -or $Port -gt 0)
+    $requested = if ($Port) { $Port } elseif ($Yes.IsPresent) { $suggested } else {
         [int](Read-TextPrompt "Port (will be checked for availability)" "$suggested")
     }
-    if ($Script:EffPort -lt 1 -or $Script:EffPort -gt 65535) {
-        Throw-Stop "Port out of range: $($Script:EffPort)"
+    if ($requested -lt 1 -or $requested -gt 65535) {
+        Throw-Stop "Port out of range: $requested"
     }
-    if (Test-PortFree -P $Script:EffPort) {
-        Write-Ok "Port $($Script:EffPort) is free"
-    } else {
-        Throw-Stop "Port $($Script:EffPort) is already in use. Run 'Get-NetTCPConnection -LocalPort $($Script:EffPort)' to see what's there, free it, or pick a different port (-Port)."
+    if (Test-PortBindable -P $requested -Ranges $ranges) {
+        $Script:EffPort = $requested
+        Write-Ok "Port $requested is free"
+        return
     }
+    # Busy or reserved. Report who holds it, then auto-fall-back -- UNLESS the
+    # operator pinned a specific -Port (then we respect it and stop, never
+    # silently moving a port they asked for). We never stop the other service.
+    $owner = Get-PortOwner -P $requested
+    $why = if ($owner) { "in use by $owner" }
+           elseif (Test-PortExcluded -P $requested -Ranges $ranges) { 'inside a reserved/excluded TCP range (WinNAT/http.sys)' }
+           else { 'unavailable' }
+    Write-Warn2 "Port $requested is $why."
+    if ($pinned) {
+        Throw-Stop "Port $requested ($why). Free it or pass a different -Port. The installer never stops other services."
+    }
+    $candidates = if ($Script:EffTls -eq 'none') { @(5000, 5001, 8081, 8082, 9080) } else { @(8443, 9443, 8444, 10443) }
+    $fallback = $null
+    foreach ($c in $candidates) {
+        if ($c -eq $requested) { continue }
+        if (Test-PortBindable -P $c -Ranges $ranges) { $fallback = $c; break }
+    }
+    if (-not $fallback) {
+        Throw-Stop "No free fallback port found (tried $($candidates -join ', ')). Free a port or pass -Port <n>."
+    }
+    $Script:EffPort = $fallback
+    Write-Ok "Using port $fallback instead (the server already serves on $requested). Workstations connect on port $fallback."
+}
+
+function Resolve-HttpPort {
+    # Caddy's HTTP listener (container port 80) backs two things in local-CA
+    # mode: the HTTP->HTTPS redirect and the /caddy-ca.crt download workstations
+    # use to trust the local CA. On a server already running IIS the HOST's port
+    # 80 is taken -- and we must NOT stop IIS -- so map Caddy's :80 to a free
+    # host port instead, or disable it if none is free.
+    #
+    # Let's Encrypt is the exception: its ACME HTTP-01 challenge REQUIRES the
+    # public port 80 reaching Caddy. We can't silently move that, so we only
+    # warn and leave Caddy on 80.
+    if ($Script:EffTls -eq 'none') { $Script:EffHttpPort = 0; return }
+    Write-Step "HTTP port (Caddy redirect + local-CA download)"
+    $ranges = Get-ExcludedPortRanges
+    $pinned = $PSBoundParameters.ContainsKey('HttpPort')
+    $requested = if ($pinned) { $HttpPort } else { 80 }
+
+    if ($pinned -and $requested -eq 0) {
+        $Script:EffHttpPort = 0
+        Write-Ok "HTTP port disabled (-HttpPort 0); CA served over HTTPS only."
+        return
+    }
+    if (Test-PortBindable -P $requested -Ranges $ranges) {
+        $Script:EffHttpPort = $requested
+        Write-Ok "HTTP port $requested is free"
+        return
+    }
+    $owner = Get-PortOwner -P $requested
+    $why = if ($owner) { "in use by $owner" }
+           elseif (Test-PortExcluded -P $requested -Ranges $ranges) { 'inside a reserved/excluded TCP range' }
+           else { 'unavailable' }
+    Write-Warn2 "HTTP port $requested is $why."
+    if ($Script:EffTls -eq 'letsencrypt') {
+        Write-Warn2 "Let's Encrypt needs port 80 reachable for the ACME HTTP-01 challenge."
+        Write-Warn2 "Leaving Caddy bound to 80; make sure the host forwards external :80 to it, or cert issuance fails."
+        $Script:EffHttpPort = 80
+        return
+    }
+    if ($pinned) {
+        Throw-Stop "HTTP port $requested ($why). Pass a free -HttpPort, or -HttpPort 0 to disable. The installer never stops other services."
+    }
+    foreach ($c in @(8080, 8081, 8088, 8090, 8888)) {
+        if (Test-PortBindable -P $c -Ranges $ranges) {
+            $Script:EffHttpPort = $c
+            Write-Ok "Using HTTP port $c for the redirect + CA download (host's port 80 is taken by production)."
+            return
+        }
+    }
+    $Script:EffHttpPort = 0
+    Write-Warn2 "No free HTTP port found; disabling Caddy's :80 site. The local CA will be served over HTTPS (use curl -k / trust-on-first-use)."
 }
 
 function Resolve-License {
@@ -749,26 +990,44 @@ function Install-Helper {
         if ($Script:EffTls -ne 'none') { $composeFiles += " docker-compose.tls.yml" }
         $composeFiles += " docker-compose.helper.windows.yml"
 
-        $installArgs = @(
+        # CRITICAL: -ComposeFiles is ONE string ("a.yml b.yml ...") but it
+        # contains spaces. Start-Process -ArgumentList joins an array WITHOUT
+        # quoting, so passing it as an array element splits "b.yml"/"c.yml" into
+        # extra positional args and install-helper.ps1 dies with "A positional
+        # parameter cannot be found that accepts argument 'docker-compose.tls.yml'".
+        # Build the command line ourselves with explicit quotes around every
+        # value that can contain spaces (compose list + the install dir).
+        $helperScript = Join-Path $tmpdir 'install-helper.ps1'
+        $argLine = @(
             '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-            '-File', (Join-Path $tmpdir 'install-helper.ps1'),
-            '-InstallDir', $Script:EffInstallDir,
-            '-ComposeFiles', $composeFiles,
+            '-File', "`"$helperScript`"",
+            '-InstallDir', "`"$($Script:EffInstallDir)`"",
+            '-ComposeFiles', "`"$composeFiles`"",
             '-Port', '5171'
-        )
-        $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList $installArgs -Wait -PassThru -NoNewWindow
+        ) -join ' '
+        $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList $argLine -Wait -PassThru -NoNewWindow
         if ($proc.ExitCode -ne 0) {
-            Throw-Stop "install-helper.ps1 exited with code $($proc.ExitCode)"
+            throw "install-helper.ps1 exited with code $($proc.ExitCode)"
         }
 
         # Read the generated token so we can inject it into the gateway
         # container's env.
         $tokenFile = "$env:ProgramData\3dx-gateway\helper-token.txt"
         if (-not (Test-Path $tokenFile)) {
-            Throw-Stop "install-helper.ps1 succeeded but $tokenFile was not created"
+            throw "install-helper.ps1 succeeded but $tokenFile was not created"
         }
         $Script:EffHelperToken = (Get-Content -Path $tokenFile -Raw -Encoding UTF8).Trim()
         Write-Ok "Helper installed (token captured for container env)"
+    } catch {
+        # The Apply Update helper is OPTIONAL -- a failure here must NOT abort
+        # the whole install. Downgrade to a warning, drop the helper from the
+        # compose flags so the base stack still comes up, and tell the operator
+        # they can add it later by hand.
+        Write-Warn2 "Apply Update helper install failed: $($_.Exception.Message)"
+        Write-Substep "Continuing without it. The gateway works; the web UI falls back to a copy-command update UX."
+        Write-Substep "To add it later: run scripts\host\install-helper.ps1 elevated with -ComposeFiles `"<your compose files>`"."
+        $Script:EffHelper = 'off'
+        $Script:EffHelperToken = $null
     } finally {
         Remove-Item -Recurse -Force $tmpdir -ErrorAction SilentlyContinue
     }
@@ -902,6 +1161,14 @@ volumes:
 }
 
 function Write-CaddyOverlay {
+    # Port mappings: always publish the HTTPS port (host EffPort -> container
+    # 443). Publish the HTTP port (host EffHttpPort -> container 80) only when
+    # we secured one; EffHttpPort = 0 means the host's 80 was taken and no free
+    # alternative was found, so Caddy runs HTTPS-only.
+    $portLines = "      - `"$($Script:EffPort):443`""
+    if ($Script:EffHttpPort -ne 0) {
+        $portLines += "`n      - `"$($Script:EffHttpPort):80`""
+    }
     $overlay = @"
 # Caddy reverse proxy overlay -- TLS termination.
 services:
@@ -910,8 +1177,7 @@ services:
     container_name: 3dx-gateway-caddy
     restart: unless-stopped
     ports:
-      - "$($Script:EffPort):443"
-      - "80:80"
+$portLines
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -925,13 +1191,27 @@ volumes:
 "@
     Set-Content -Path (Join-Path $Script:EffInstallDir 'docker-compose.tls.yml') -Value $overlay -Encoding UTF8
 
+    # Redirect target for the HTTP->HTTPS site. Include the explicit port when
+    # the app port isn't the standard 443 (auto-fallback may have moved it).
+    $redirTarget = if ($Script:EffPort -eq 443) { "https://$($Script:EffHostname)" } else { "https://$($Script:EffHostname):$($Script:EffPort)" }
+
+    # The local-CA download handler, reused in either the :80 site (normal) or
+    # the HTTPS site (when no HTTP port is available).
+    $caHandler = @"
+    handle /caddy-ca.crt {
+        root * /data/caddy/pki/authorities/local
+        rewrite * /root.crt
+        file_server
+    }
+"@
+
     if ($Script:EffTls -eq 'letsencrypt') {
         $caddyfile = @"
 $($Script:EffHostname) {
     reverse_proxy app:5000
 }
 "@
-    } else {
+    } elseif ($Script:EffHttpPort -ne 0) {
         $caddyfile = @"
 $($Script:EffHostname) {
     tls internal
@@ -940,16 +1220,46 @@ $($Script:EffHostname) {
 
 # Expose the local CA so workstations can install it once.
 :80 {
-    handle /caddy-ca.crt {
-        root * /data/caddy/pki/authorities/local
-        rewrite * /root.crt
-        file_server
-    }
-    redir /* https://$($Script:EffHostname){uri}
+$caHandler
+    redir /* $redirTarget{uri}
+}
+"@
+    } else {
+        # No HTTP port available (host's 80 is held by production and nothing
+        # free): serve the CA over the HTTPS site and skip the redirect site.
+        # Workstations fetch it with `curl -k` (trust-on-first-use) since they
+        # don't trust the CA yet -- documented in the install summary.
+        $caddyfile = @"
+$($Script:EffHostname) {
+    tls internal
+$caHandler
+    reverse_proxy app:5000
 }
 "@
     }
     Set-Content -Path (Join-Path $Script:EffInstallDir 'Caddyfile') -Value $caddyfile -Encoding UTF8
+}
+
+function Write-HelperOverlay {
+    # The helper compose overlay wires the gateway container to the host's
+    # Apply Update helper (Scheduled Task on TCP 5171). Get-ComposeFlags adds
+    # `-f docker-compose.helper.windows.yml` when the helper is on, so this file
+    # MUST exist in the install dir or `docker compose up -d` fails with "no
+    # such file". The content is static; HELPER_TOKEN is resolved from .env at
+    # compose time (escaped here so PowerShell doesn't expand it).
+    $overlay = @"
+# Windows host overlay -- gives the gateway container the env vars + DNS entry
+# it needs to reach the Apply Update helper running on the host. Generated by
+# install.ps1 v$INSTALLER_VERSION.
+services:
+  app:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      Updates__HelperEndpoint: "tcp://host.docker.internal:5171"
+      Updates__HelperToken: "`${HELPER_TOKEN:?HELPER_TOKEN missing in .env -- did install.ps1 + install-helper.ps1 run?}"
+"@
+    Set-Content -Path (Join-Path $Script:EffInstallDir 'docker-compose.helper.windows.yml') -Value $overlay -Encoding UTF8
 }
 
 function Write-EnvFile {
@@ -1010,12 +1320,20 @@ function Write-Files {
         Write-CaddyOverlay
         Write-Ok "docker-compose.tls.yml + Caddyfile ($($Script:EffTls))"
     }
+    if ($Script:EffHelper -eq 'on') {
+        Write-HelperOverlay
+        Write-Ok "docker-compose.helper.windows.yml"
+    }
     Write-EnvFile
     Write-Ok ".env (ACL: Administrators + SYSTEM full; $env:USERDOMAIN\$env:USERNAME read)"
     $licDest = Join-Path $Script:EffInstallDir 'license.lic'
     if ($Script:EffLicense) {
         Copy-Item -Path $Script:EffLicense -Destination $licDest -Force
         Write-Ok "license.lic copied"
+    } elseif ((Test-Path $licDest) -and (Get-Item $licDest).Length -gt 0) {
+        # Re-apply over an existing install: a real license is already in place.
+        # Never clobber it with an empty placeholder.
+        Write-Ok "Existing license.lic preserved ($((Get-Item $licDest).Length) bytes)"
     } else {
         # Empty placeholder so the bind-mount in docker-compose.yml has
         # something to point at. Backend's LicenseService will see a 0-byte
@@ -1207,7 +1525,14 @@ function Show-Summary {
     if ($Script:EffTls -eq 'auto') {
         Write-Host '  TLS (local CA):  Each workstation must install the Caddy CA once.' -ForegroundColor Yellow
         Write-Host "                   On the workstation, run as admin:"
-        Write-Host "                     curl -O http://$($Script:EffHostname)/caddy-ca.crt"
+        if ($Script:EffHttpPort -eq 0) {
+            # No HTTP port; CA is served over the (not-yet-trusted) HTTPS site.
+            Write-Host "                     curl -k -O https://$($Script:EffHostname):$($Script:EffPort)/caddy-ca.crt"
+        } elseif ($Script:EffHttpPort -eq 80) {
+            Write-Host "                     curl -O http://$($Script:EffHostname)/caddy-ca.crt"
+        } else {
+            Write-Host "                     curl -O http://$($Script:EffHostname):$($Script:EffHttpPort)/caddy-ca.crt"
+        }
         Write-Host "                     certutil -addstore -f Root caddy-ca.crt"
         Write-Host "                   CadBridge Setup.bat does this automatically."
         Write-Host ''
@@ -1269,7 +1594,11 @@ function Confirm-Summary {
     Write-Host '  Ready to install:' -ForegroundColor Cyan
     Write-Host "    install dir:  $($Script:EffInstallDir)"
     Write-Host "    hostname:     $($Script:EffHostname)"
-    Write-Host "    port:         $($Script:EffPort)"
+    Write-Host "    port (HTTPS): $($Script:EffPort)"
+    if ($Script:EffTls -ne 'none') {
+        $httpDisplay = if ($Script:EffHttpPort -eq 0) { 'disabled (CA over HTTPS)' } else { "$($Script:EffHttpPort) (Caddy redirect + CA download)" }
+        Write-Host "    port (HTTP):  $httpDisplay"
+    }
     Write-Host "    TLS:          $($Script:EffTls)"
     $licDisplay = if ($Script:EffLicense) { $Script:EffLicense } else { '(pending -- add later from Solfins email)' }
     Write-Host "    license:      $licDisplay"
@@ -1290,10 +1619,12 @@ function Main {
     Test-Docker
     Test-Disk
     Test-Ram
+    Show-ServerPortPreflight
     Resolve-InstallDir
     Resolve-Hostname
     Resolve-TlsMode
     Resolve-Port
+    Resolve-HttpPort
     Resolve-License
     Resolve-Telemetry
     Resolve-Helper
