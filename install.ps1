@@ -125,7 +125,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
 # Constants
-$INSTALLER_VERSION   = '1.7.1'
+$INSTALLER_VERSION   = '1.7.2'
 $DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
 $WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
@@ -1218,31 +1218,33 @@ $($Script:EffHostname) {
     reverse_proxy app:5000
 }
 "@
-    } elseif ($Script:EffHttpPort -ne 0) {
-        $caddyfile = @"
+    } else {
+        # auto (local CA): ALWAYS expose /caddy-ca.crt on the HTTPS site so
+        # clients can fetch it at https://<host>:<port>/caddy-ca.crt regardless
+        # of the HTTP port. This is what CadBridge Setup falls back to (over
+        # TOFU) when the host's port 80 is taken by IIS and the CA isn't on the
+        # standard HTTP port. Keep the :80 redirect + CA site too when we
+        # secured an HTTP port.
+        $httpsSite = @"
 $($Script:EffHostname) {
     tls internal
+$caHandler
     reverse_proxy app:5000
 }
+"@
+        if ($Script:EffHttpPort -ne 0) {
+            $caddyfile = @"
+$httpsSite
 
-# Expose the local CA so workstations can install it once.
+# Expose the local CA + redirect HTTP to HTTPS.
 :80 {
 $caHandler
     redir /* $redirTarget{uri}
 }
 "@
-    } else {
-        # No HTTP port available (host's 80 is held by production and nothing
-        # free): serve the CA over the HTTPS site and skip the redirect site.
-        # Workstations fetch it with `curl -k` (trust-on-first-use) since they
-        # don't trust the CA yet -- documented in the install summary.
-        $caddyfile = @"
-$($Script:EffHostname) {
-    tls internal
-$caHandler
-    reverse_proxy app:5000
-}
-"@
+        } else {
+            $caddyfile = $httpsSite
+        }
     }
     Set-Content -Path (Join-Path $Script:EffInstallDir 'Caddyfile') -Value $caddyfile -Encoding UTF8
 }
