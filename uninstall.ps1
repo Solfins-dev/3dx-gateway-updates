@@ -105,15 +105,24 @@ function Invoke-ComposeDown {
     $down = @('compose') + $flags + @('down', '--remove-orphans')
     if (-not $KeepData) { $down += '-v' }
     Push-Location $InstallDir
+    # docker compose writes its progress ("Container X Stopping/Removing") to
+    # STDERR. With 2>&1 those lines merge into the pipeline as ErrorRecords, and
+    # under $ErrorActionPreference='Stop' PowerShell renders each one as a scary
+    # "NativeCommandError" block even though nothing failed. Drop EAP to
+    # Continue around the call so the progress prints as plain text.
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     try {
-        & docker @down 2>&1 | ForEach-Object { Write-Substep "$_" }
-        if ($LASTEXITCODE -eq 0) {
+        & docker @down 2>&1 | ForEach-Object { Write-Substep ([string]$_) }
+        $code = $LASTEXITCODE
+        if ($code -eq 0) {
             $vmsg = if ($KeepData) { '(volumes kept)' } else { '(volumes removed)' }
             Write-Ok "Stack down $vmsg"
         } else {
-            Write-Warn2 "compose down returned $LASTEXITCODE; falling back to remove-by-name."
+            Write-Warn2 "compose down returned $code; falling back to remove-by-name."
         }
     } finally {
+        $ErrorActionPreference = $prevEAP
         Pop-Location
     }
 }
