@@ -149,6 +149,30 @@ Register-ScheduledTask `
     -Description "3DX Gateway Apply Update helper -- listens on TCP $Port for the gateway container to trigger backend updates." | Out-Null
 Write-Host "    [OK] Scheduled Task '$TaskName' registered (AtStartup, runs as SYSTEM)"
 
+#--- Firewall ---------------------------------------------------------------
+
+# The gateway CONTAINER reaches the helper over host.docker.internal:$Port, i.e.
+# from the Docker NAT subnet -- NOT loopback. On Windows Server the host firewall
+# blocks inbound by default (same class of failure we hit for the published web
+# ports), so without this rule the container's connect times out and the web UI
+# shows "one-click update not available" even though the helper is healthy (the
+# install-time PING below uses 127.0.0.1, which is exempt, so it misleadingly
+# passes). Open inbound TCP $Port. The bearer token is the real auth boundary --
+# the helper rejects any request without it and can only run
+# `docker compose pull && up -d` against the install's compose set, never
+# arbitrary commands. Idempotent (same-named rule removed first) and non-fatal
+# (a disabled firewall service must not abort the helper install). To tighten,
+# scope -RemoteAddress to the Docker subnet after install.
+$fwName = "3DX Gateway Helper TCP $Port"
+try {
+    Get-NetFirewallRule -DisplayName $fwName -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+    New-NetFirewallRule -DisplayName $fwName -Direction Inbound -Protocol TCP -LocalPort $Port -Action Allow -Profile Any -ErrorAction Stop | Out-Null
+    Write-Host "    [OK] Firewall: inbound TCP $Port allowed ('$fwName')"
+} catch {
+    Write-Warning "    Could not add firewall rule for TCP $Port`: $($_.Exception.Message)"
+    Write-Host "    Add it by hand if the web UI still shows 'one-click not available': New-NetFirewallRule -DisplayName '$fwName' -Direction Inbound -Protocol TCP -LocalPort $Port -Action Allow"
+}
+
 if (-not $NoStart) {
     Start-ScheduledTask -TaskName $TaskName
     # Give the listener ~2 s to bind.
