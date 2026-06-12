@@ -843,6 +843,26 @@ sure the path on the host is right next to `docker-compose.prod.yml`.
 licensed. If you've renewed but the file is the old one, replace
 `license.lic` and restart: `docker compose restart app`.
 
+### After an update, the web UI still looks like the old version
+
+The gateway serves `index.html` with `no-store` and the hashed JS/CSS bundles as
+`immutable`, so after **Apply Update** the browser automatically refetches
+`index.html`, sees the new bundle URL, and loads the new UI — no manual refresh
+needed. The one exception is the **first** update from a gateway old enough that
+it didn't yet send the `no-store` header: the browser may still hold a cached
+`index.html`. If a feature you expect after an update isn't there (e.g. a button
+behaves like the previous version), do a one-time **hard refresh**
+(`Ctrl+Shift+R`). From then on, updates load automatically.
+
+### One-click update keeps showing "not available" (Windows)
+
+The gateway container reaches the host-side updater helper over
+`host.docker.internal:5171`, which Windows Server's firewall blocks by default.
+`install-helper.ps1` (via `install.ps1 -AddHelper`) opens that port — if you
+installed the helper before that rule existed, re-run `install.ps1 -AddHelper`
+once to add it (and pull the latest image). Verify with
+`Get-NetFirewallRule -DisplayName "3DX Gateway Helper TCP 5171"`. See §4.1.1.
+
 ### Workstation can't reach the gateway
 
 - DNS / hostname: from a workstation `ping gateway.yourcompany.local`.
