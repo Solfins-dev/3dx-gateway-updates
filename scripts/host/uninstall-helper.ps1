@@ -42,6 +42,19 @@ if ($existing) {
     Write-Host "    [..] Scheduled Task '$TaskName' was not registered"
 }
 
+# Remove the helper firewall rule(s) install-helper.ps1 added (default port 5171;
+# also clears a non-default-port rule if one was created). Non-fatal.
+foreach ($p in @(5171, 5170)) {
+    $fwName = "3DX Gateway Helper TCP $p"
+    try {
+        $rule = Get-NetFirewallRule -DisplayName $fwName -ErrorAction SilentlyContinue
+        if ($rule) {
+            $rule | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+            Write-Host "    [OK] firewall rule removed: '$fwName'"
+        }
+    } catch { }
+}
+
 if ($PurgeState) {
     if (Test-Path $StateDir) {
         Remove-Item -Recurse -Force $StateDir
