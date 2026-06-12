@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.42",
+    "version": "1.1.43",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Selective generate: tick assemblies in the BOM tree to export only the selected assemblies and everything below them. Empty selection still generates the full BOM. Co-release with CadBridge 1.8.92.",
+    "changelog": "BOM tree tidy-up: the assembly-selection Clear button now sits in the checkbox column header, and Expand Items / Collapse Items also expand and collapse the documents (the separate Expand Docs / Collapse Docs buttons are gone). Updates: when the one-click helper is missing on a Windows host, Settings now shows the correct PowerShell command to enable it (instead of a Linux SSH line).",
     "sha256": null
   },
   "cadBridge": {
