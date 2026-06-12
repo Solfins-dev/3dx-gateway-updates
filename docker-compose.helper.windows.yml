@@ -23,3 +23,7 @@ services:
     environment:
       Updates__HelperEndpoint: "tcp://host.docker.internal:5171"
       Updates__HelperToken: "${HELPER_TOKEN:?HELPER_TOKEN missing in .env -- did install.ps1 + install-helper.ps1 run?}"
+      # Host OS marker -- the container can't detect the HOST OS (always Linux
+      # inside). Settings -> Updates uses this to show Windows-appropriate
+      # manual-update / enable-helper instructions (backend 1.1.43+).
+      Updates__HostKind: "windows"
