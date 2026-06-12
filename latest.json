@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.46",
+    "version": "1.1.47",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Selective BOM export fix: ticking a sub-assembly now exports that sub-assembly's BOM (it was exporting the whole top-level BOM because the export read a stale selection during Generate & Export).",
+    "changelog": "Selective BOM export confirmed working (ticking a sub-assembly exports that sub-assembly's BOM). This build removes a temporary diagnostic log; no behavior change.",
     "sha256": null
   },
   "cadBridge": {
