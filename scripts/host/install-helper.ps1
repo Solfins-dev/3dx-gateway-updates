@@ -118,8 +118,28 @@ Write-Host "    [OK] helper script copied to $HelperPath"
 $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 if ($existing) {
     Write-Host "    [..] removing previous task registration"
+    try { Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue } catch { }
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
 }
+
+# A prior helper process may still be LISTENING on the port. Unregister-ScheduledTask
+# removes the task definition but does NOT kill the running powershell.exe, and
+# Stop-ScheduledTask can race it -- so the old listener can keep the port. If it does,
+# the freshly-started task (with the NEW token) can't bind, and the stale process
+# answers PINGs with the OLD token => {"error":"unauthorized"} even though the token
+# files are correct (the exact symptom seen 2026-06-12). Kill whatever still holds the
+# port so the new task binds cleanly with the new token.
+try {
+    $stale = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+             Select-Object -ExpandProperty OwningProcess -Unique
+    foreach ($procId in $stale) {
+        try {
+            Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+            Write-Host "    [..] killed stale helper still listening on port $Port (PID $procId)"
+        } catch { }
+    }
+    if ($stale) { Start-Sleep -Milliseconds 700 }
+} catch { }
 
 $action = New-ScheduledTaskAction `
     -Execute 'powershell.exe' `
