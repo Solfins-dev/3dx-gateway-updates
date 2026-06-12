@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.43",
+    "version": "1.1.44",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "BOM tree tidy-up: the assembly-selection Clear button now sits in the checkbox column header, and Expand Items / Collapse Items also expand and collapse the documents (the separate Expand Docs / Collapse Docs buttons are gone). Updates: when the one-click helper is missing on a Windows host, Settings now shows the correct PowerShell command to enable it (instead of a Linux SSH line).",
+    "changelog": "Selective BOM export: when you tick assemblies in the BOM tree, the Excel/CSV/XML export now produces one file per ticked assembly (each is that assembly's own sub-BOM), instead of a single export for the top assembly. Ticking nested assemblies is skipped (the parent's file already contains them). With nothing ticked, the full top-level BOM is exported as before.",
     "sha256": null
   },
   "cadBridge": {
