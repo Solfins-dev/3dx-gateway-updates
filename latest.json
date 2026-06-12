@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.41",
+    "version": "1.1.42",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Co-release with CadBridge 1.8.87 - clearer status while SolidWorks is still launching (it is no longer mislabeled 'Wrong tenant' when the tenant is actually correct).",
+    "changelog": "Selective generate: tick assemblies in the BOM tree to export only the selected assemblies and everything below them. Empty selection still generates the full BOM. Co-release with CadBridge 1.8.92.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.91",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.91/CadBridge-Setup.zip",
-    "changelog": "More reliable certificate install during CadBridge setup: the gateway CA is now downloaded with curl, which avoids a TLS handshake failure seen on some Windows PowerShell versions. Works on servers where port 80 is taken by another service.",
-    "sha256": "d055ee755f4c7763674ea8e86dc0ba91cb4ceae8737e59ec4caaf15c52fefe28"
+    "version": "1.8.92",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.92/CadBridge-Setup.zip",
+    "changelog": "Supports selective generate runs from the gateway (1.1.42+): outputs are produced only for the assemblies ticked in the BOM tree, while the root assembly stays open without being exported.",
+    "sha256": "6b98533e7145058032af3106830e2ad77b4172f190706401a2bd5203bd08d37f"
   }
 }
