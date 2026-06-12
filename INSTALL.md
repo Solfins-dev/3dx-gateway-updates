@@ -697,8 +697,9 @@ your threat model needs tighter restriction, edit the SocketMode in
 #### Windows: helper as a Scheduled Task
 
 **Adding it to an existing install (the common case — helper skipped or
-failed during the original install):** one elevated PowerShell line on the
-server, nothing else (`install.ps1` v1.7.5+):
+failed during the original install, OR "one-click not available" came back
+after an update):** one elevated PowerShell line on the server, nothing else
+(`install.ps1` v1.7.6+):
 
 ```powershell
 iwr -useb https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/install.ps1 -OutFile "$env:TEMP\install.ps1"; & "$env:TEMP\install.ps1" -AddHelper
@@ -707,11 +708,17 @@ iwr -useb https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main
 `-AddHelper` detects the install at `C:\ProgramData\3DX-Gateway` (pass
 `-InstallDir` if it lives elsewhere), installs the Scheduled Task + token,
 writes `docker-compose.helper.windows.yml`, appends `HELPER_TOKEN` to `.env`
-(everything else in `.env` is preserved), and recreates the app container.
-The Settings → Updates card shows the real ✨ Apply Update button on the
-next open. The same command is offered copy-paste-ready in the web UI when
-the gateway knows it runs on a Windows host (`Updates__HostKind`, written
-by installer v1.7.5+; older installs show the generic Linux instructions).
+(everything else in `.env` is preserved), **pulls the latest image, and
+recreates the app container WITH the helper overlay** (v1.7.6+). That overlay
+is what injects `Updates__HelperEndpoint`/`Token` into the container — a plain
+`docker compose up -d` without it drops the wiring, which is the usual reason
+"one-click update not available" reappears after an update. Because the
+helper's baked compose set now includes the overlay, subsequent one-click
+updates keep the wiring. The Settings → Updates card shows the real ✨ Apply
+Update button on the next open. The same command is offered copy-paste-ready
+in the web UI when the gateway knows it runs on a Windows host
+(`Updates__HostKind`, written by installer v1.7.5+; older installs show the
+generic Linux instructions).
 
 `install.ps1` also offers the helper as an optional step during a fresh
 install (or skip with `-Helper off`). When accepted it:
