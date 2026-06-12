@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.47",
+    "version": "1.1.48",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Selective BOM export confirmed working (ticking a sub-assembly exports that sub-assembly's BOM). This build removes a temporary diagnostic log; no behavior change.",
+    "changelog": "Clean SolidWorks session at Generate: a leftover root assembly from a previous session is evicted (with consent when it has unsaved changes), and after each run SolidWorks is left with no documents open so they no longer accumulate across BOM switches.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.92",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.92/CadBridge-Setup.zip",
-    "changelog": "Supports selective generate runs from the gateway (1.1.42+): outputs are produced only for the assemblies ticked in the BOM tree, while the root assembly stays open without being exported.",
-    "sha256": "6b98533e7145058032af3106830e2ad77b4172f190706401a2bd5203bd08d37f"
+    "version": "1.8.93",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.93/CadBridge-Setup.zip",
+    "changelog": "Pre-launch orphan sweep (clears a leftover SolidWorks process that would block a fresh launch) and end-of-run unload, so the agent leaves SolidWorks with no documents open after a generate run.",
+    "sha256": "cec0d709d8055f5ea84b3412759b0cd9e2eeb889afae339e3f3a6bd5f4ab2eaa"
   }
 }
