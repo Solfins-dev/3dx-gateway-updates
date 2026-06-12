@@ -598,12 +598,28 @@ file to the host path before the recreate.
 
 Two paths:
 
-**Manual (default).** On the gateway host, ~30 seconds of downtime:
+**Manual (default).** On the gateway host, ~30 seconds of downtime.
+Always use the same `-f` compose-file set your install was created with —
+pulling with a partial set recreates the app without the TLS/helper env.
+
+*Linux (`install.sh` layout)* — `compose.env` in the install dir records the
+exact overlay set, so this works on any install unchanged:
 
 ```sh
-cd ~/3dx-gateway
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+cd /opt/3dx-gateway        # or your --install-dir
+. ./compose.env
+docker compose $COMPOSE_FILES pull
+docker compose $COMPOSE_FILES up -d
+```
+
+*Windows (`install.ps1` layout)* — elevated PowerShell:
+
+```powershell
+Set-Location C:\ProgramData\3DX-Gateway   # or your -InstallDir
+# Include docker-compose.tls.yml only if it exists in the folder, and
+# docker-compose.helper.windows.yml only if the helper is installed.
+docker compose -f docker-compose.yml -f docker-compose.tls.yml -f docker-compose.helper.windows.yml pull
+docker compose -f docker-compose.yml -f docker-compose.tls.yml -f docker-compose.helper.windows.yml up -d
 ```
 
 The container restarts on the new image; PostgreSQL stays up; sessions
@@ -680,8 +696,25 @@ your threat model needs tighter restriction, edit the SocketMode in
 
 #### Windows: helper as a Scheduled Task
 
-`install.ps1` offers the helper as an optional step (or skip with
-`-Helper off`). When accepted it:
+**Adding it to an existing install (the common case — helper skipped or
+failed during the original install):** one elevated PowerShell line on the
+server, nothing else (`install.ps1` v1.7.5+):
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/install.ps1 -OutFile "$env:TEMP\install.ps1"; & "$env:TEMP\install.ps1" -AddHelper
+```
+
+`-AddHelper` detects the install at `C:\ProgramData\3DX-Gateway` (pass
+`-InstallDir` if it lives elsewhere), installs the Scheduled Task + token,
+writes `docker-compose.helper.windows.yml`, appends `HELPER_TOKEN` to `.env`
+(everything else in `.env` is preserved), and recreates the app container.
+The Settings → Updates card shows the real ✨ Apply Update button on the
+next open. The same command is offered copy-paste-ready in the web UI when
+the gateway knows it runs on a Windows host (`Updates__HostKind`, written
+by installer v1.7.5+; older installs show the generic Linux instructions).
+
+`install.ps1` also offers the helper as an optional step during a fresh
+install (or skip with `-Helper off`). When accepted it:
 
 - Fetches `scripts/host/{3dx-gateway-helper,install-helper,uninstall-helper}.ps1`
   from the public repo.
