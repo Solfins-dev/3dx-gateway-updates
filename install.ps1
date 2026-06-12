@@ -73,6 +73,14 @@ default the installer opens exactly the gateway's HTTPS + HTTP ports so LAN
 clients can connect (Docker Desktop does this on workstations but not on
 Server). Pass this if you manage the firewall externally.
 
+.PARAMETER AddHelper
+Standalone mode: add the Apply Update host helper to an EXISTING install
+(enables the one-click update button in Settings -> Updates) and exit. Detects
+the install at -InstallDir (default C:\ProgramData\3DX-Gateway), installs the
+helper Scheduled Task + token, writes the compose overlay, updates .env, and
+recreates the app container. No other install steps run. Use when the helper
+was skipped or failed during the original install.
+
 .PARAMETER Yes
 Unattended: skip all confirmation prompts and use defaults for unanswered.
 
@@ -86,6 +94,10 @@ PS> & $env:TEMP\install.ps1
 .EXAMPLE
 # Unattended
 PS> & $env:TEMP\install.ps1 -Hostname gateway.example.com -License C:\tmp\example.lic -Yes
+
+.EXAMPLE
+# Enable one-click Apply Update on an existing install (helper was skipped/failed)
+PS> & $env:TEMP\install.ps1 -AddHelper
 
 .LINK
 https://github.com/Solfins-dev/3dx-gateway-updates/blob/main/INSTALL.md
@@ -104,6 +116,7 @@ param(
     [string]$Telemetry,
     [ValidateSet('on', 'off')]
     [string]$Helper,
+    [switch]$AddHelper,
     [switch]$Force,
     [switch]$UpdateDocker,
     [switch]$SkipFirewall,
@@ -125,7 +138,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
 # Constants
-$INSTALLER_VERSION   = '1.7.4'
+$INSTALLER_VERSION   = '1.7.5'
 $DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
 $WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
@@ -1032,7 +1045,7 @@ function Install-Helper {
         # they can add it later by hand.
         Write-Warn2 "Apply Update helper install failed: $($_.Exception.Message)"
         Write-Substep "Continuing without it. The gateway works; the web UI falls back to a copy-command update UX."
-        Write-Substep "To add it later: run scripts\host\install-helper.ps1 elevated with -ComposeFiles `"<your compose files>`"."
+        Write-Substep "To add it later: re-run this installer elevated with -AddHelper (one step, wires everything)."
         $Script:EffHelper = 'off'
         $Script:EffHelperToken = $null
     } finally {
@@ -1123,6 +1136,10 @@ services:
       # recreate. .env survives container recreates because docker compose
       # reads it from the host fs.
       ConfigProtector__Seed: "`${CONFIG_PROTECTOR_SEED}"
+      # Host OS marker -- the container can't detect the HOST OS (it is always
+      # Linux inside). Settings -> Updates uses this to show Windows-appropriate
+      # manual-update / enable-helper instructions when the helper is absent.
+      Updates__HostKind: "windows"
 $portsBlock
     volumes:
       - app_data:/app/data
@@ -1291,6 +1308,9 @@ services:
     environment:
       Updates__HelperEndpoint: "tcp://host.docker.internal:5171"
       Updates__HelperToken: "`${HELPER_TOKEN:?HELPER_TOKEN missing in .env -- did install.ps1 + install-helper.ps1 run?}"
+      # Repeated here (also in the base compose since 1.7.5) so -AddHelper on a
+      # pre-1.7.5 install gets the marker without regenerating docker-compose.yml.
+      Updates__HostKind: "windows"
 "@
     Set-Content -Path (Join-Path $Script:EffInstallDir 'docker-compose.helper.windows.yml') -Value $overlay -Encoding UTF8
 }
@@ -1667,11 +1687,77 @@ function Confirm-Summary {
     }
 }
 
+#--- AddHelper standalone mode ----------------------------------------------
+
+function Update-EnvHelperToken {
+    # Surgical .env edit -- NEVER regenerate the whole file here (it holds
+    # POSTGRES_PASSWORD + CONFIG_PROTECTOR_SEED that must survive untouched).
+    # Replaces an existing HELPER_TOKEN line or appends one.
+    $envPath = Join-Path $Script:EffInstallDir '.env'
+    if (-not (Test-Path $envPath)) {
+        Throw-Stop ".env not found at $envPath -- is this a complete install? (-AddHelper only works over an existing install.ps1 install)"
+    }
+    $lines = @(Get-Content -Path $envPath -Encoding UTF8 | Where-Object { $_ -notmatch '^\s*HELPER_TOKEN=' })
+    $lines += "HELPER_TOKEN=$($Script:EffHelperToken)"
+    Set-Content -Path $envPath -Value ($lines -join "`r`n") -Encoding UTF8
+    Write-Ok ".env updated (HELPER_TOKEN)"
+}
+
+function Invoke-AddHelper {
+    # Standalone: bolt the Apply Update helper onto an EXISTING install and exit.
+    # Mirrors what a fresh install with Helper=on does, minus everything else:
+    # Scheduled Task + token (Install-Helper) -> compose overlay -> .env token ->
+    # recreate app so the container picks up Updates__HelperEndpoint/Token.
+    Write-Step "Add Apply Update helper to an existing install"
+
+    $dir = if ($InstallDir) { $InstallDir } else { $DEFAULT_INSTALL_DIR }
+    if (-not (Test-Path (Join-Path $dir 'docker-compose.yml'))) {
+        Throw-Stop "No gateway install found at $dir (docker-compose.yml missing). Pass -InstallDir if it lives elsewhere."
+    }
+    $Script:EffInstallDir = $dir
+    # Reconstruct the compose-file set from what the original install wrote --
+    # Get-ComposeFlags + Install-Helper's -ComposeFiles both key off these.
+    $Script:EffTls    = if (Test-Path (Join-Path $dir 'docker-compose.tls.yml')) { 'auto' } else { 'none' }
+    $Script:EffHelper = 'on'
+    Write-Substep "Install dir: $dir (TLS overlay: $(if ($Script:EffTls -ne 'none') { 'present' } else { 'absent' }))"
+
+    if ($DryRun.IsPresent) {
+        Write-Step "DRY RUN -- would install the helper Scheduled Task, write docker-compose.helper.windows.yml, update .env, and recreate the app with: docker compose $(Get-ComposeFlags) up -d"
+        return
+    }
+
+    Install-Helper
+    if ($Script:EffHelper -ne 'on' -or -not $Script:EffHelperToken) {
+        Throw-Stop "Helper install failed -- see the warning above. Nothing in $dir was changed."
+    }
+
+    Write-HelperOverlay
+    Write-Ok "docker-compose.helper.windows.yml"
+    Update-EnvHelperToken
+
+    Write-Step "Recreating the app container with the helper wiring"
+    Push-Location $dir
+    try {
+        $cmd = "docker compose $(Get-ComposeFlags) up -d"
+        cmd /c $cmd
+        if ($LASTEXITCODE -ne 0) {
+            Throw-Stop "docker compose up -d exited with code $LASTEXITCODE. Fix the error and re-run manually: $cmd"
+        }
+    } finally {
+        Pop-Location
+    }
+
+    Write-Ok "One-click Apply Update is enabled -- reopen Settings -> Updates in the browser."
+    Write-Substep "Helper runs as Scheduled Task '3dx-gateway-helper' (SYSTEM, TCP 5171). Uninstall: scripts\host\uninstall-helper.ps1 (admin)."
+    Write-Substep "From now on include -f docker-compose.helper.windows.yml in any manual docker compose command (or one-click apply drops the helper env on recreate)."
+}
+
 #--- Main -------------------------------------------------------------------
 
 function Main {
     Show-Banner
     Require-Admin
+    if ($AddHelper.IsPresent) { Invoke-AddHelper; return }
     Test-OS
     Test-Docker
     Test-Disk
