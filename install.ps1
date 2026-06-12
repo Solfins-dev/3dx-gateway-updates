@@ -77,9 +77,11 @@ Server). Pass this if you manage the firewall externally.
 Standalone mode: add the Apply Update host helper to an EXISTING install
 (enables the one-click update button in Settings -> Updates) and exit. Detects
 the install at -InstallDir (default C:\ProgramData\3DX-Gateway), installs the
-helper Scheduled Task + token, writes the compose overlay, updates .env, and
-recreates the app container. No other install steps run. Use when the helper
-was skipped or failed during the original install.
+helper Scheduled Task + token, writes the compose overlay, updates .env, PULLS
+the latest image, and recreates the app container with the helper wiring. No
+other install steps run. Use when the helper was skipped/failed during install,
+OR as the recovery path when "one-click update not available" reappears after a
+prior update recreated the container without the helper overlay.
 
 .PARAMETER Yes
 Unattended: skip all confirmation prompts and use defaults for unanswered.
@@ -138,7 +140,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
 # Constants
-$INSTALLER_VERSION   = '1.7.5'
+$INSTALLER_VERSION   = '1.7.6'
 $DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
 $WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
@@ -1735,21 +1737,33 @@ function Invoke-AddHelper {
     Write-Ok "docker-compose.helper.windows.yml"
     Update-EnvHelperToken
 
-    Write-Step "Recreating the app container with the helper wiring"
+    # Pull latest THEN recreate -- so -AddHelper also serves as the recovery path
+    # when a prior manual/one-click update recreated the container WITHOUT the
+    # helper overlay (dropping the Updates__Helper* env, which is exactly what
+    # makes "one-click not available" reappear). `up -d` alone would relaunch the
+    # locally-cached image; the explicit pull lands the newest backend at the same
+    # time we re-wire the helper. Both steps include the helper overlay so the
+    # recreated container keeps the wiring.
+    $flags = Get-ComposeFlags
+    Write-Step "Pulling the latest gateway image"
     Push-Location $dir
     try {
-        $cmd = "docker compose $(Get-ComposeFlags) up -d"
-        cmd /c $cmd
+        cmd /c "docker compose $flags pull"
         if ($LASTEXITCODE -ne 0) {
-            Throw-Stop "docker compose up -d exited with code $LASTEXITCODE. Fix the error and re-run manually: $cmd"
+            Write-Warn2 "docker compose pull exited with code $LASTEXITCODE -- continuing with the locally-cached image."
+        }
+        Write-Step "Recreating the app container with the helper wiring"
+        cmd /c "docker compose $flags up -d"
+        if ($LASTEXITCODE -ne 0) {
+            Throw-Stop "docker compose up -d exited with code $LASTEXITCODE. Fix the error and re-run manually: docker compose $flags up -d"
         }
     } finally {
         Pop-Location
     }
 
-    Write-Ok "One-click Apply Update is enabled -- reopen Settings -> Updates in the browser."
+    Write-Ok "One-click Apply Update is enabled + the gateway is on the latest image -- reopen Settings -> Updates in the browser."
     Write-Substep "Helper runs as Scheduled Task '3dx-gateway-helper' (SYSTEM, TCP 5171). Uninstall: scripts\host\uninstall-helper.ps1 (admin)."
-    Write-Substep "From now on include -f docker-compose.helper.windows.yml in any manual docker compose command (or one-click apply drops the helper env on recreate)."
+    Write-Substep "The helper's baked compose set includes docker-compose.helper.windows.yml, so future one-click updates keep the wiring."
 }
 
 #--- Main -------------------------------------------------------------------
