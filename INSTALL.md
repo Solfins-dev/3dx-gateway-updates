@@ -731,6 +731,15 @@ install (or skip with `-Helper off`). When accepted it:
 - Registers a Scheduled Task `3dx-gateway-helper` (AtStartup, runs as
   SYSTEM, RunLevel=Highest, auto-restart x3 with 1 min interval).
 - Starts the task immediately + smoke-tests PING via 127.0.0.1:5171.
+- Opens a Windows Firewall inbound rule for TCP 5171 ("3DX Gateway Helper
+  TCP 5171"). **This is required on Windows Server**, where the host firewall
+  blocks inbound by default: the gateway container reaches the helper over
+  `host.docker.internal:5171` (from the Docker NAT subnet, NOT loopback), so
+  without the rule the container's connect times out and the web UI shows
+  "one-click update not available" even though the helper is healthy — the
+  install-time PING uses 127.0.0.1, which is firewall-exempt, so it passes and
+  hides the problem. The bearer token remains the auth boundary; tighten with
+  `-RemoteAddress` to the Docker subnet if needed.
 - Writes `HELPER_TOKEN=<value>` to the install dir's `.env`.
 - Layers `docker-compose.helper.windows.yml` onto the compose flags,
   which gives the container `host.docker.internal:host-gateway` plus
@@ -746,10 +755,13 @@ bridge binding is required so the container can reach it via
 `host.docker.internal`). Auth is the bearer token shared via `.env`;
 without it the helper returns `{"error":"unauthorized"}` on every
 command. The token file ACL excludes the `Users` group so non-admin
-processes on the same host can't read it. If your host is on a network
-where you don't trust other devices, add a Windows Firewall rule that
-restricts inbound TCP 5171 to the Docker subnet (typically `172.17.0.0/16`
-on Docker Desktop).
+processes on the same host can't read it. The installer opens inbound TCP
+5171 with `-Profile Any` (required so the container can reach the helper —
+see the install step above). If your host is on a network where you don't
+trust other devices, tighten the existing "3DX Gateway Helper TCP 5171" rule
+with `-RemoteAddress` scoped to the Docker subnet (typically `172.17.0.0/16`
+on Docker Desktop) — the token already rejects unauthorized callers, so this
+is defense-in-depth.
 
 ### 4.2 Apply a CadBridge update (each workstation)
 
