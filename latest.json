@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.48",
+    "version": "1.1.49",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Clean SolidWorks session at Generate: a leftover root assembly from a previous session is evicted (with consent when it has unsaved changes), and after each run SolidWorks is left with no documents open so they no longer accumulate across BOM switches.",
+    "changelog": "Virtual components (SW Make Virtual, e.g. Copy of spider) now generate STEP and 3D PDF reliably instead of intermittently coming out one short. The post-run hint no longer warns about a format you did not select this run.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.93",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.93/CadBridge-Setup.zip",
-    "changelog": "Pre-launch orphan sweep (clears a leftover SolidWorks process that would block a fresh launch) and end-of-run unload, so the agent leaves SolidWorks with no documents open after a generate run.",
-    "sha256": "cec0d709d8055f5ea84b3412759b0cd9e2eeb889afae339e3f3a6bd5f4ab2eaa"
+    "version": "1.8.94",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.94/CadBridge-Setup.zip",
+    "changelog": "Resolve virtual components by their stable child name so STEP and 3D PDF are produced for them (fixes the in-session vs BOM parent-name mismatch that left them missing on a fresh cache).",
+    "sha256": "4907019c7a3725ea2383c9fa9ec030f857ef8591bddb9acf4951561187e5ff3a"
   }
 }
