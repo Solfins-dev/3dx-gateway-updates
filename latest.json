@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.49",
+    "version": "1.1.50",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Virtual components (SW Make Virtual, e.g. Copy of spider) now generate STEP and 3D PDF reliably instead of intermittently coming out one short. The post-run hint no longer warns about a format you did not select this run.",
+    "changelog": "Output panel: pick a download folder + optional ZIP, delivered into one Name_Revision subfolder per selected assembly. PDF/DXF/Excel are checked by default and remembered across BOMs. The ERP Integration tab is hidden by default (re-enable in Settings - Funkcije). Clearer on-screen reason when CAD Bridge generation is unavailable.",
     "sha256": null
   },
   "cadBridge": {
