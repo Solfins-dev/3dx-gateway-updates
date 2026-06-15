@@ -119,6 +119,7 @@ param(
     [ValidateSet('on', 'off')]
     [string]$Helper,
     [switch]$AddHelper,
+    [switch]$NoRecreate,
     [switch]$Force,
     [switch]$UpdateDocker,
     [switch]$SkipFirewall,
@@ -1000,7 +1001,7 @@ function Install-Helper {
     $tmpdir = Join-Path $env:TEMP "3dx-gateway-helper-$(Get-Random)"
     New-Item -ItemType Directory -Force -Path $tmpdir | Out-Null
     try {
-        foreach ($f in @('3dx-gateway-helper.ps1', 'install-helper.ps1', 'uninstall-helper.ps1')) {
+        foreach ($f in @('3dx-gateway-helper.ps1', 'apply-worker.ps1', 'install-helper.ps1', 'uninstall-helper.ps1')) {
             $url = "$PUBLIC_REPO_BASE/scripts/host/$f"
             Invoke-WebRequest -Uri $url -OutFile (Join-Path $tmpdir $f) -UseBasicParsing -ErrorAction Stop
         }
@@ -1737,13 +1738,29 @@ function Invoke-AddHelper {
     Write-Ok "docker-compose.helper.windows.yml"
     Update-EnvHelperToken
 
-    # Pull latest THEN recreate -- so -AddHelper also serves as the recovery path
-    # when a prior manual/one-click update recreated the container WITHOUT the
-    # helper overlay (dropping the Updates__Helper* env, which is exactly what
-    # makes "one-click not available" reappear). `up -d` alone would relaunch the
-    # locally-cached image; the explicit pull lands the newest backend at the same
-    # time we re-wire the helper. Both steps include the helper overlay so the
-    # recreated container keeps the wiring.
+    # -NoRecreate: land/upgrade the helper (task + apply-worker + compose-set.json +
+    # overlay + token) WITHOUT touching the running container. This is the safe path
+    # to roll out a NEW helper while a one-click update is broken or a specific image
+    # is pinned -- recreating here could roll the app off the intended image. After
+    # this, do one controlled `docker compose up -d` yourself (or let the next
+    # one-click apply recreate it).
+    if ($NoRecreate.IsPresent) {
+        Write-Ok "Helper installed/upgraded WITHOUT recreating the app container (-NoRecreate)."
+        Write-Substep "Apply worker + authoritative compose-set.json are in place; the next one-click Apply will reconcile against the live compose set."
+        Write-Substep "To pick up a new backend now, run a controlled recreate yourself:"
+        Write-Substep "  cd `"$dir`"; docker compose $(Get-ComposeFlags) up -d"
+        Write-Substep "Helper runs as Scheduled Task '3dx-gateway-helper' (SYSTEM, TCP 5171). Uninstall: scripts\host\uninstall-helper.ps1 (admin)."
+        return
+    }
+
+    # Default: pull latest THEN recreate -- so -AddHelper also serves as the recovery
+    # path when a prior manual/one-click update recreated the container WITHOUT the
+    # helper overlay (dropping the Updates__Helper* env, which is exactly what makes
+    # "one-click not available" reappear). `up -d` alone would relaunch the locally-
+    # cached image; the explicit pull lands the newest backend at the same time we
+    # re-wire the helper. Both steps include the helper overlay so the recreated
+    # container keeps the wiring. (Use -NoRecreate to skip this when a pin is in
+    # effect or you want to recreate separately.)
     $flags = Get-ComposeFlags
     Write-Step "Pulling the latest gateway image"
     Push-Location $dir
@@ -1763,7 +1780,7 @@ function Invoke-AddHelper {
 
     Write-Ok "One-click Apply Update is enabled + the gateway is on the latest image -- reopen Settings -> Updates in the browser."
     Write-Substep "Helper runs as Scheduled Task '3dx-gateway-helper' (SYSTEM, TCP 5171). Uninstall: scripts\host\uninstall-helper.ps1 (admin)."
-    Write-Substep "The helper's baked compose set includes docker-compose.helper.windows.yml, so future one-click updates keep the wiring."
+    Write-Substep "The apply worker reads the authoritative compose-set.json at apply time, so future one-click updates always reconcile against the live compose set (overlays included)."
 }
 
 #--- Main -------------------------------------------------------------------
