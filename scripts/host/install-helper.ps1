@@ -52,9 +52,12 @@ $ErrorActionPreference = 'Stop'
 
 $StateDir       = "$env:ProgramData\3dx-gateway"
 $HelperPath     = "$StateDir\helper.ps1"
+$WorkerPath     = "$StateDir\apply-worker.ps1"
+$SetPath        = "$StateDir\compose-set.json"
 $TokenPath      = "$StateDir\helper-token.txt"
 $TaskName       = "3dx-gateway-helper"
 $ScriptSource   = Join-Path $PSScriptRoot '3dx-gateway-helper.ps1'
+$WorkerSource   = Join-Path $PSScriptRoot 'apply-worker.ps1'
 
 #--- Pre-flight -------------------------------------------------------------
 
@@ -71,6 +74,9 @@ if (-not (Test-IsAdmin)) {
 if (-not (Test-Path $ScriptSource)) {
     throw "Source helper script not found: $ScriptSource (this script must run from scripts\host\)."
 }
+if (-not (Test-Path $WorkerSource)) {
+    throw "Source apply worker not found: $WorkerSource (this script must run from scripts\host\)."
+}
 
 Write-Host "==> Installing 3DX Gateway Apply Update helper"
 
@@ -80,13 +86,28 @@ if (-not (Test-Path $StateDir)) {
     New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
 }
 
-# Generate a 32-byte cryptographic random token (256 bits, hex-encoded =
-# 64 chars). [Guid]::NewGuid() is a UUID, NOT cryptographic random; use the
-# RandomNumberGenerator class.
-$bytes = New-Object byte[] 32
-[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
-$token = ($bytes | ForEach-Object { '{0:x2}' -f $_ }) -join ''
-Set-Content -Path $TokenPath -Value $token -Encoding UTF8 -NoNewline
+# REUSE an existing token if one is already on disk; only generate when absent.
+# Rotating the token on every (re)install is what caused the "running container holds
+# the OLD token -> helper answers with the NEW token -> unauthorized -> one-click not
+# available" class: the container's HELPER_TOKEN env is fixed at create time, so a
+# rotation breaks auth until the next recreate. Keeping a stable token means
+# -AddHelper (incl. -NoRecreate) never desyncs the live container. To force a fresh
+# token, run uninstall-helper.ps1 -PurgeState first.
+$existingToken = $null
+if (Test-Path $TokenPath) {
+    try { $existingToken = (Get-Content -Path $TokenPath -Raw -Encoding UTF8).Trim() } catch { }
+}
+if ($existingToken) {
+    $token = $existingToken
+    Write-Host "    [OK] reusing existing helper token (no rotation -> running container stays authenticated)"
+} else {
+    # Generate a 32-byte cryptographic random token (256 bits, hex-encoded = 64 chars).
+    # [Guid]::NewGuid() is a UUID, NOT cryptographic random; use the RNG class.
+    $bytes = New-Object byte[] 32
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+    $token = ($bytes | ForEach-Object { '{0:x2}' -f $_ }) -join ''
+    Set-Content -Path $TokenPath -Value $token -Encoding UTF8 -NoNewline
+}
 
 # Lock down ACL: Administrators + SYSTEM only. SYSTEM is required because
 # the helper Scheduled Task runs under that principal.
@@ -110,6 +131,50 @@ $acl2.SetAccessRule($admins)
 $acl2.SetAccessRule($system)
 Set-Acl -Path $HelperPath -AclObject $acl2
 Write-Host "    [OK] helper script copied to $HelperPath"
+
+# Copy the apply worker next to the helper. The helper forks it with -File on APPLY
+# (a real .ps1, not an inline -Command, so its try/finally guarantees a terminal
+# status and there is no nested-escaping surface).
+Copy-Item -Path $WorkerSource -Destination $WorkerPath -Force
+$acl3 = Get-Acl $WorkerPath
+$acl3.SetAccessRuleProtection($true, $false)
+$acl3.SetAccessRule($admins)
+$acl3.SetAccessRule($system)
+Set-Acl -Path $WorkerPath -AclObject $acl3
+Write-Host "    [OK] apply worker copied to $WorkerPath"
+
+# Write the AUTHORITATIVE compose-set manifest (operator intent). The apply worker
+# reads THIS at apply time instead of trusting the baked Scheduled-Task -ComposeFiles
+# param, so the apply always reconciles against the install's real -f set / project /
+# working dir / .env -- this is the structural drift fix. Paths are absolute; the
+# worker validates each exists and fails closed if any is missing (never a silent
+# fallback to a different set, which is what dropped overlays / pins before).
+$composeFilesAbs = @()
+foreach ($cf in ($ComposeFiles -split ' ')) {
+    if (-not $cf) { continue }
+    $composeFilesAbs += if ([System.IO.Path]::IsPathRooted($cf)) { $cf } else { (Join-Path $InstallDir $cf) }
+}
+$projectName = (Split-Path -Leaf $InstallDir).ToLowerInvariant()
+$composeSet = [ordered]@{
+    schemaVersion = 1
+    project       = $projectName
+    workingDir    = $InstallDir
+    envFile       = (Join-Path $InstallDir '.env')
+    composeFiles  = $composeFilesAbs
+    appService    = 'app'
+    appContainer  = '3dx-gateway-app'
+    writtenAt     = (Get-Date).ToUniversalTime().ToString('o')
+    writtenBy     = 'install-helper.ps1'
+}
+$setJson = ($composeSet | ConvertTo-Json -Depth 6)
+[System.IO.File]::WriteAllText($SetPath, $setJson, [System.Text.UTF8Encoding]::new($false))
+$acl4 = Get-Acl $SetPath
+$acl4.SetAccessRuleProtection($true, $false)
+$acl4.SetAccessRule($admins)
+$acl4.SetAccessRule($system)
+Set-Acl -Path $SetPath -AclObject $acl4
+Write-Host "    [OK] compose-set manifest written to $SetPath"
+Write-Host "         project=$projectName, files=$($composeFilesAbs -join ', ')"
 
 #--- Scheduled Task ---------------------------------------------------------
 
