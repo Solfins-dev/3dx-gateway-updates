@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.50",
+    "version": "1.1.51",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Output panel: pick a download folder + optional ZIP, delivered into one Name_Revision subfolder per selected assembly. PDF/DXF/Excel are checked by default and remembered across BOMs. The ERP Integration tab is hidden by default (re-enable in Settings - Funkcije). Clearer on-screen reason when CAD Bridge generation is unavailable.",
+    "changelog": "BOM Explorer: the '3DX documents' toggle (renamed from 'Enable 3DX export') now also controls the BOM Tree. When off, platform documents - derived outputs, attachments and specifications - and their status indicators are hidden; drawings and generated files always stay visible. Re-enable in Settings - Funkcije.",
     "sha256": null
   },
   "cadBridge": {
