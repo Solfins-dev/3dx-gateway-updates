@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.51",
+    "version": "1.1.52",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "BOM Explorer: the '3DX documents' toggle (renamed from 'Enable 3DX export') now also controls the BOM Tree. When off, platform documents - derived outputs, attachments and specifications - and their status indicators are hidden; drawings and generated files always stay visible. Re-enable in Settings - Funkcije.",
+    "changelog": "Durable one-click update: the host updater now reads the live compose set, always reports a real result (no more stuck 'downloading'), and self-recovers from token/overlay drift. After updating, a one-time host step refreshes the helper (see release notes).",
     "sha256": null
   },
   "cadBridge": {
