@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.52",
+    "version": "1.1.53",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Durable one-click update: the host updater now reads the live compose set, always reports a real result (no more stuck 'downloading'), and self-recovers from token/overlay drift. After updating, a one-time host step refreshes the helper (see release notes).",
+    "changelog": "Output panel polish + Excel export fixes: clear 'CAD Bridge offline' badge, a stale-export warning on drawings, the rarely-needed 'Force regenerate' option is now hidden by default (enable it in Settings - Funkcije), Excel column headers now match the Columns picker exactly, and DXF hyperlinks only appear when a DXF actually exists.",
     "sha256": null
   },
   "cadBridge": {
