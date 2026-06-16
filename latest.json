@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.54",
+    "version": "1.1.55",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Documents you download to your folder now get readable names (Title, Enterprise Item Number, Revision) with per-assembly subfolders, and the Excel BOM links match them - pick the format in Settings (Generate tab, Download section). ERP/Pantheon file names are unchanged. The Refresh button now sits to the left of Export.",
+    "changelog": "Download delivery now uses the CadBridge agent's native folder picker when the agent is online: pick a folder once and it is remembered across restarts with no browser permission prompt, and files go straight to that folder (no longer the browser Downloads folder). Builds on the readable document naming from the previous update.",
     "sha256": null
   },
   "cadBridge": {
