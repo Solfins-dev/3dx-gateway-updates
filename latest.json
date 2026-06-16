@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.56",
+    "version": "1.1.57",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Fixes downloads going to the browser Downloads folder (and PDFs opening) right after an update: the download folder is now always a real folder chosen via the CAD Bridge agent and is remembered across restarts. Pick a folder once and deliveries go straight there.",
+    "changelog": "Javni Integration API + Swagger dokumentacija: na /swagger sada stoje dva OpenAPI dokumenta (Integration za eksterne ERP integracije + Internal). Bez funkcionalnih promena za postojeće korisnike.",
     "sha256": null
   },
   "cadBridge": {
     "version": "1.8.94",
     "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.94/CadBridge-Setup.zip",
-    "changelog": "Resolve virtual components by their stable child name so STEP and 3D PDF are produced for them (fixes the in-session vs BOM parent-name mismatch that left them missing on a fresh cache).",
+    "changelog": "Bez izmena agenta u ovom izdanju.",
     "sha256": "4907019c7a3725ea2383c9fa9ec030f857ef8591bddb9acf4951561187e5ff3a"
   }
 }
