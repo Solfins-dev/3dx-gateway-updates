@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.55",
+    "version": "1.1.56",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Download delivery now uses the CadBridge agent's native folder picker when the agent is online: pick a folder once and it is remembered across restarts with no browser permission prompt, and files go straight to that folder (no longer the browser Downloads folder). Builds on the readable document naming from the previous update.",
+    "changelog": "Fixes downloads going to the browser Downloads folder (and PDFs opening) right after an update: the download folder is now always a real folder chosen via the CAD Bridge agent and is remembered across restarts. Pick a folder once and deliveries go straight there.",
     "sha256": null
   },
   "cadBridge": {
