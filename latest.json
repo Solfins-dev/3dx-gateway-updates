@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.53",
+    "version": "1.1.54",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Output panel polish + Excel export fixes: clear 'CAD Bridge offline' badge, a stale-export warning on drawings, the rarely-needed 'Force regenerate' option is now hidden by default (enable it in Settings - Funkcije), Excel column headers now match the Columns picker exactly, and DXF hyperlinks only appear when a DXF actually exists.",
+    "changelog": "Documents you download to your folder now get readable names (Title, Enterprise Item Number, Revision) with per-assembly subfolders, and the Excel BOM links match them - pick the format in Settings (Generate tab, Download section). ERP/Pantheon file names are unchanged. The Refresh button now sits to the left of Export.",
     "sha256": null
   },
   "cadBridge": {
