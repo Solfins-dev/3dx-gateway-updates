@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.58",
+    "version": "1.1.59",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Internal Swagger dokument je sada gejtovan iza Developer licence (obican gateway izlaze samo Integration API). Bez drugih funkcionalnih promena.",
+    "changelog": "Novi ekran za upravljanje licencom (Podesavanja - Licenciranje): pregled trenutne licence, otpremanje/zamena .lic fajla i ponovno ucitavanje sa diska.",
     "sha256": null
   },
   "cadBridge": {
