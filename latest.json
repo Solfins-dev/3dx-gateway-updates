@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.57",
+    "version": "1.1.58",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Javni Integration API + Swagger dokumentacija: na /swagger sada stoje dva OpenAPI dokumenta (Integration za eksterne ERP integracije + Internal). Bez funkcionalnih promena za postojeće korisnike.",
+    "changelog": "Internal Swagger dokument je sada gejtovan iza Developer licence (obican gateway izlaze samo Integration API). Bez drugih funkcionalnih promena.",
     "sha256": null
   },
   "cadBridge": {
