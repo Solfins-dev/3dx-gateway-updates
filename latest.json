@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.60",
+    "version": "1.1.61",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Doterana kartica Licenciranje (Maks korisnika umesto 0/N; sakriveni nefunkcionalni moduli; Telemetrija premestena u Konekcije).",
+    "changelog": "Ispravka: DXF se nije generisao za pojedine crteze kada je PDF vec bio pripremljen (ili kada se trazi samo DXF). Sada se crtez otvori i DXF sheet renderuje ispravno.",
     "sha256": null
   },
   "cadBridge": {
