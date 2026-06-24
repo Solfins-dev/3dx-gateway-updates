@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.63",
+    "version": "1.1.64",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Stabilnost generisanja i isporuke: prazna informacija o crtezu (SW Connected) vise ne preskace generisanje, isporuku ni prikaz DXF/PDF fajlova. Bez izmena agenta.",
+    "changelog": "Brzo pokretanje izvoza na hladnom kesu (zajedno sa CAD Bridge 1.8.95) i ispravan CAD Bridge indikator: vise se ne prikazuje lazno upozorenje o CATIA licenci kad CATIA nije pokrenuta; export ceka da se sklop ucita pre generisanja (umesto greske 'No active document').",
     "sha256": null
   },
   "cadBridge": {
