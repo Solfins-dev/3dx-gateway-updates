@@ -7,9 +7,9 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.94",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.94/CadBridge-Setup.zip",
-    "changelog": "Bez izmena agenta u ovom izdanju.",
-    "sha256": "4907019c7a3725ea2383c9fa9ec030f857ef8591bddb9acf4951561187e5ff3a"
+    "version": "1.8.95",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.95/CadBridge-Setup.zip",
+    "changelog": "Brze pokretanje sa hladnog kesa: vise se ne pred-otvaraju nekesirani crtezi tokom pokretanja (jedan crtez je znao da traje minutima); crtezi se otvaraju u sekundama tokom samog izvoza. Bez promene rezultata.",
+    "sha256": "9e09d7b75b67e45545a936340dd0c516205f2e948d4a58b7ddadeb0184dd2a2f"
   }
 }
