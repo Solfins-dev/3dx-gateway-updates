@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.62",
+    "version": "1.1.63",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Ispravka: generisani DXF se sada isporucuje u izabrani folder i prikazuje u stablu sastavnice (ranije se DXF napravio ali se nije video ni isporucio kod nekih crteza).",
+    "changelog": "Stabilnost generisanja i isporuke: prazna informacija o crtezu (SW Connected) vise ne preskace generisanje, isporuku ni prikaz DXF/PDF fajlova. Bez izmena agenta.",
     "sha256": null
   },
   "cadBridge": {
