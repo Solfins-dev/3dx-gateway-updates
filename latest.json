@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.64",
+    "version": "1.1.65",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Brzo pokretanje izvoza na hladnom kesu (zajedno sa CAD Bridge 1.8.95) i ispravan CAD Bridge indikator: vise se ne prikazuje lazno upozorenje o CATIA licenci kad CATIA nije pokrenuta; export ceka da se sklop ucita pre generisanja (umesto greske 'No active document').",
+    "changelog": "Automatsko generisanje bez potvrda (Podesavanja > Funkcije, podrazumevano iskljuceno): kada je ukljuceno, izvoz vise ne staje na pitanje 'Nesnimljene promene' za benigne sklopove (auto-razresene reference 3DX konektora) niti na zatvaranje cistih dokumenata van sastavnice. Izmenjeni delovi i crtezi i dalje traze potvrdu. Nista se ne snima na platformu; svezina izvora i dalje radi.",
     "sha256": null
   },
   "cadBridge": {
