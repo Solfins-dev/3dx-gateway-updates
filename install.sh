@@ -38,10 +38,11 @@
 #   /etc/systemd/system/3dx-gateway.service     auto-start on boot (static)
 #   /usr/local/bin/3dx-gateway-helper.sh        if --helper
 #   /etc/systemd/system/3dx-gateway-helper.*    if --helper
+#   /etc/systemd/system/3dx-gateway-certwatch.*  TLS certificate watchdog timer
 
 set -euo pipefail
 
-INSTALLER_VERSION="1.4.0"
+INSTALLER_VERSION="1.5.0"
 PUBLIC_REPO_BASE="https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main"
 GHCR_IMAGE_BACKEND="ghcr.io/solfins-dev/3dx-gateway:latest"
 
@@ -63,6 +64,7 @@ ARG_TLS=""              # auto | letsencrypt | none
 ARG_LICENSE=""
 ARG_TELEMETRY=""        # on | off
 ARG_HELPER=0            # 0 | 1
+ARG_CERT_WATCHDOG=""    # "" (ask) | 1 | 0
 ARG_YES=0               # 0 | 1 (skip confirmation prompts)
 ARG_INSTALL_DOCKER=""   # "" | yes | no
 ARG_DRY_RUN=0
@@ -76,6 +78,7 @@ TLS_MODE=""
 LICENSE_PATH=""
 TELEMETRY_ENABLED=""
 INSTALL_HELPER=0
+INSTALL_CERT_WATCHDOG=0
 POSTGRES_PASSWORD=""
 CONFIG_PROTECTOR_SEED=""
 
@@ -142,6 +145,9 @@ Flags:
                            "awaiting license" mode if absent; drop the real one in later)
   --telemetry on|off       Anonymous hourly version ping (default: on)
   --helper                 Install Apply Update host helper (one-click backend update)
+  --cert-watchdog          Install the TLS certificate watchdog timer (default: ask; on
+                           under --yes, since it stores no credentials)
+  --no-cert-watchdog       Skip the TLS certificate watchdog
   --install-docker yes|no  Auto-install Docker if missing (default: ask)
   --yes, -y                Skip "are you sure?" confirmations
   --dry-run                Show what would happen, don't make changes
@@ -171,6 +177,8 @@ parse_args() {
             --license)          ARG_LICENSE="$2"; shift 2 ;;
             --telemetry)        ARG_TELEMETRY="$2"; shift 2 ;;
             --helper)           ARG_HELPER=1; shift ;;
+            --cert-watchdog)    ARG_CERT_WATCHDOG=1; shift ;;
+            --no-cert-watchdog) ARG_CERT_WATCHDOG=0; shift ;;
             --install-docker)   ARG_INSTALL_DOCKER="$2"; shift 2 ;;
             --yes|-y)           ARG_YES=1; shift ;;
             --dry-run)          ARG_DRY_RUN=1; shift ;;
@@ -609,6 +617,35 @@ EOF
         [[ "$yn" == "y" ]] && INSTALL_HELPER=1 || INSTALL_HELPER=0
     fi
     ok "Helper: $([[ $INSTALL_HELPER -eq 1 ]] && echo install || echo skip)"
+}
+
+prompt_cert_watchdog() {
+    # Only meaningful when Caddy actually manages a certificate for us.
+    if [[ "$TLS_MODE" == "none" ]]; then
+        INSTALL_CERT_WATCHDOG=0
+        return 0
+    fi
+    step "TLS certificate watchdog"
+    if [[ -n "$ARG_CERT_WATCHDOG" ]]; then
+        INSTALL_CERT_WATCHDOG=$ARG_CERT_WATCHDOG
+    elif [[ $ARG_YES -eq 1 ]]; then
+        # Unlike the helper this stores no credentials and touches only two
+        # namespaced units, so unattended installs get it by default.
+        INSTALL_CERT_WATCHDOG=1
+    else
+        cat <<EOF
+    Caddy's certificates live 12h and renew themselves -- but only while it can
+    read its storage volume. A hard power cut can strand that storage: Caddy then
+    keeps serving a cached certificate it can no longer renew (site up, app 200)
+    until it expires and every browser shows "Not secure" with nothing else
+    broken. This installs a systemd timer that checks the served certificate --
+    and the key backing it -- every 4h, and restarts Caddy if it is stranded.
+EOF
+        local yn
+        yn=$(prompt_yn "Install the TLS certificate watchdog?" "y")
+        [[ "$yn" == "y" ]] && INSTALL_CERT_WATCHDOG=1 || INSTALL_CERT_WATCHDOG=0
+    fi
+    ok "Certificate watchdog: $([[ $INSTALL_CERT_WATCHDOG -eq 1 ]] && echo install || echo skip)"
 }
 
 #─── File writing ────────────────────────────────────────────────────────
@@ -1052,6 +1089,34 @@ install_helper_files() {
     ok "Helper installed (socket at /run/3dx-gateway-helper.sock)"
 }
 
+install_cert_watchdog() {
+    [[ $INSTALL_CERT_WATCHDOG -eq 1 ]] || return 0
+    step "Installing TLS certificate watchdog"
+    # Same fetch-and-run shape as install_helper_files. Runs AFTER the stack is
+    # up so the setup script's inline --check-only pass has a live Caddy to
+    # inspect. Optional, like the helper: never abort the install over it.
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap "rm -rf '$tmpdir'" RETURN
+    local f
+    for f in check-tls-cert.sh setup-cert-watchdog.sh; do
+        if ! curl -fsSL "${PUBLIC_REPO_BASE}/scripts/host/$f" -o "$tmpdir/$f"; then
+            warn "Could not fetch $f from $PUBLIC_REPO_BASE -- skipping the watchdog."
+            substep "TLS works now; it just won't self-heal if Caddy's storage is ever stranded."
+            substep "Add it later: sudo bash setup-cert-watchdog.sh --install-dir ${INSTALL_DIR}"
+            return 0
+        fi
+    done
+    chmod +x "$tmpdir"/*.sh
+    if bash "$tmpdir/setup-cert-watchdog.sh" --install-dir "$INSTALL_DIR"; then
+        ok "${INSTALL_SLUG}-certwatch.timer enabled (every 4h + 5 min after boot)"
+    else
+        # The setup script exits non-zero when its inline check finds an
+        # already-broken certificate -- the timer is still installed.
+        warn "Watchdog installed, but its first check reported a problem (see above)."
+    fi
+}
+
 install_systemd_service() {
     step "Installing systemd service"
     write_compose_env
@@ -1225,6 +1290,30 @@ EOF
 
 EOF
     fi
+    if [[ "$TLS_MODE" != "none" ]]; then
+        if [[ $INSTALL_CERT_WATCHDOG -eq 1 ]]; then
+            cat <<EOF
+  ${C_BOLD}TLS certificate watchdog:${C_RESET}
+    ${INSTALL_SLUG}-certwatch.timer runs every 4h (+ 5 min after boot). It inspects the
+    certificate served on :${APP_PORT} and the key backing it in the volume, and restarts
+    Caddy if an ungraceful shutdown stranded its storage.
+      Run now:   systemctl start ${INSTALL_SLUG}-certwatch.service
+      Next run:  systemctl list-timers ${INSTALL_SLUG}-certwatch.timer
+      Log:       journalctl -u ${INSTALL_SLUG}-certwatch.service -n 30
+                 ${INSTALL_DIR}/certwatch.log
+
+EOF
+        else
+            cat <<EOF
+  ${C_YELLOW}${C_BOLD}TLS certificate watchdog: not installed.${C_RESET}
+    Without it, a power cut that strands Caddy's storage leaves the site on an
+    expiring certificate ("Not secure" in every browser) until someone notices.
+    Add it later:
+      sudo bash setup-cert-watchdog.sh --install-dir ${INSTALL_DIR}
+
+EOF
+        fi
+    fi
     if [[ -z "$LICENSE_PATH" ]]; then
         cat <<EOF
   ${C_YELLOW}${C_BOLD}License pending:${C_RESET}
@@ -1264,6 +1353,7 @@ confirm_summary() {
     license:      ${LICENSE_PATH:-"(pending -- add later from Solfins email)"}
     telemetry:    $TELEMETRY_ENABLED
     helper:       $([[ $INSTALL_HELPER -eq 1 ]] && echo install || echo skip)
+    $([[ "$TLS_MODE" != "none" ]] && echo "watchdog:     $([[ $INSTALL_CERT_WATCHDOG -eq 1 ]] && echo install || echo skip)  (TLS certificate self-heal)")
 EOF
     local yn
     yn=$(prompt_yn "Proceed?" "y")
@@ -1287,6 +1377,7 @@ main() {
     prompt_license
     prompt_telemetry
     prompt_helper
+    prompt_cert_watchdog
     confirm_summary
 
     if [[ $ARG_DRY_RUN -eq 1 ]]; then
@@ -1301,6 +1392,7 @@ main() {
     start_stack
     open_firewall
     smoke_test
+    install_cert_watchdog
     print_summary
 }
 
