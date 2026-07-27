@@ -706,19 +706,24 @@ iwr -useb https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main
 ```
 
 `-AddHelper` detects the install at `C:\ProgramData\3DX-Gateway` (pass
-`-InstallDir` if it lives elsewhere), installs the Scheduled Task + token,
-writes `docker-compose.helper.windows.yml`, appends `HELPER_TOKEN` to `.env`
-(everything else in `.env` is preserved), **pulls the latest image, and
-recreates the app container WITH the helper overlay** (v1.7.6+). That overlay
-is what injects `Updates__HelperEndpoint`/`Token` into the container — a plain
-`docker compose up -d` without it drops the wiring, which is the usual reason
-"one-click update not available" reappears after an update. Because the
-helper's baked compose set now includes the overlay, subsequent one-click
-updates keep the wiring. The Settings → Updates card shows the real ✨ Apply
-Update button on the next open. The same command is offered copy-paste-ready
-in the web UI when the gateway knows it runs on a Windows host
-(`Updates__HostKind`, written by installer v1.7.5+; older installs show the
-generic Linux instructions).
+`-InstallDir` if it lives elsewhere), installs the Scheduled Task + token +
+the `apply-worker.ps1` worker, writes the authoritative `compose-set.json` and
+`docker-compose.helper.windows.yml`, and updates `HELPER_TOKEN` in `.env`
+(everything else preserved; the token is REUSED if one already exists, so the
+running container never desyncs). By default it then **pulls the latest image
+and recreates the app container WITH the helper overlay** (v1.7.6+). That
+overlay injects `Updates__HelperEndpoint`/`Token` — a plain `docker compose up
+-d` without it drops the wiring, the usual reason "one-click not available"
+reappears. **From the durable helper (1.2.0, 2026-06-15) the apply path no
+longer relies on a baked compose set: the worker reads `compose-set.json` (the
+real `-f` set written here) fresh on every apply and fails closed if a file is
+missing — so a future update can never silently drop the overlay or an image
+pin.** Add **`-NoRecreate`** to land/upgrade the helper WITHOUT recreating the
+running container (the safe path when a specific image is pinned, or to roll
+the new helper out before the next one-click Apply does the recreate). The
+Settings → Updates card shows the real ✨ Apply Update button on the next open;
+the same command is offered copy-paste-ready in the web UI when the gateway
+knows it runs on a Windows host (`Updates__HostKind`, installer v1.7.5+).
 
 `install.ps1` also offers the helper as an optional step during a fresh
 install (or skip with `-Helper off`). When accepted it:
@@ -872,7 +877,52 @@ once to add it (and pull the latest image). Verify with
 - Cert trust: open `https://<gateway>/` in the workstation's browser. If
   you see "Your connection is not private", `Setup.bat` didn't install
   the CA cert successfully. Re-run `Setup.bat` as admin and watch the
-  output.
+  output. **But first check whether other workstations see the same
+  warning** — if they all do, the problem is on the server, not in this
+  workstation's trust store, and re-running `Setup.bat` cannot fix it.
+  See "Browser says Not secure" below.
+
+### Browser says "Not secure" but the gateway otherwise works
+
+Everything loads, logins work, the app answers — only the padlock is broken,
+on **every** workstation. That means the server's own certificate expired, not
+that a workstation lost trust in the CA. Re-running `Setup.bat` changes nothing:
+it manages the workstation's trust store, and the trust store isn't the problem.
+
+Cause: the gateway's Caddy container renews its certificate every few hours,
+but only while it can read its storage. An ungraceful shutdown (power cut, or on
+Windows a Docker Desktop / WSL2 teardown during a Windows Update reboot) can
+lose the certificate's private key out of that storage. Caddy keeps serving the
+certificate it already holds in memory — so nothing looks broken — until that
+copy expires several hours later.
+
+Fix, on the server:
+
+```bash
+docker restart 3dx-gateway-caddy      # Linux; on Windows use the same name
+```
+
+Within seconds Caddy issues a fresh certificate. The CA root is unaffected, so
+**no workstation needs anything reinstalled** — just reload the page.
+
+To prevent it recurring, install the certificate watchdog, which checks every
+4 hours and restarts Caddy automatically if the certificate is stranded:
+
+```powershell
+# Windows, elevated PowerShell
+iwr -useb https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/install.ps1 -OutFile "$env:TEMP\install.ps1"
+& "$env:TEMP\install.ps1" -AddCertWatchdog
+```
+
+```bash
+# Linux
+curl -fsSLO https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/scripts/host/setup-cert-watchdog.sh
+curl -fsSLO https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/scripts/host/check-tls-cert.sh
+sudo bash setup-cert-watchdog.sh --install-dir /opt/3dx-gateway
+```
+
+New installs get it by default. It also catches the underlying damage *before*
+the certificate expires, so in practice nobody sees the warning again.
 
 ### Setup.bat "Unknown publisher" or "Run scripts from Internet?" prompt
 
