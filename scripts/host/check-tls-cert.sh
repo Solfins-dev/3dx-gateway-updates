@@ -35,7 +35,13 @@
 #
 # Usage:
 #   check-tls-cert.sh [--install-dir DIR] [--container NAME] [--min-hours N]
+#                     [--hostname HOST] [--port N] [--log-file PATH]
 #                     [--check-only]
+#
+# --hostname/--port default to HOSTNAME/APP_PORT in <install-dir>/.env, which is
+# what install.sh writes. Pass them explicitly for a stack it did not create
+# (a plain compose deployment): there is no .env to read them from, and
+# `hostname -f` is not a safe guess -- on dev01 it returns the short name.
 # ---------------------------------------------------------------------------
 
 # NOT `set -e`: every failure here is handled explicitly and must still reach
@@ -48,21 +54,32 @@ MIN_HOURS=2
 CHECK_ONLY=0
 GATEWAY_HOST=""
 PORT=""
+LOG_FILE=""
+# Whether host/port came from flags. When BOTH did, .env is not needed at all
+# and its absence must not produce a warning on every single run -- that is the
+# normal case for a stack that install.sh did not create (a compose deployment
+# out of a git checkout, say).
+HOST_FROM_FLAG=0
+PORT_FROM_FLAG=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --install-dir) INSTALL_DIR="$2"; shift 2 ;;
         --container)   CADDY_CONTAINER="$2"; shift 2 ;;
         --min-hours)   MIN_HOURS="$2"; shift 2 ;;
-        --hostname)    GATEWAY_HOST="$2"; shift 2 ;;
-        --port)        PORT="$2"; shift 2 ;;
+        --hostname)    GATEWAY_HOST="$2"; HOST_FROM_FLAG=1; shift 2 ;;
+        --port)        PORT="$2"; PORT_FROM_FLAG=1; shift 2 ;;
+        --log-file)    LOG_FILE="$2"; shift 2 ;;
         --check-only)  CHECK_ONLY=1; shift ;;
         -h|--help)     sed -n '2,/^# ----/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown flag: $1" >&2; exit 2 ;;
     esac
 done
 
-LOG_FILE="${INSTALL_DIR}/certwatch.log"
+# Default alongside the install dir; --log-file exists because that dir is not
+# always a place you want to write into (e.g. a git checkout, where a stray
+# certwatch.log shows up as an untracked file).
+[ -n "$LOG_FILE" ] || LOG_FILE="${INSTALL_DIR}/certwatch.log"
 
 log() {
     local line
@@ -82,17 +99,19 @@ log() {
 # the shell's own HOSTNAME.
 TLS_MODE="auto"
 ENV_FILE="${INSTALL_DIR}/.env"
+NEED_ENV=1
+if [ "$HOST_FROM_FLAG" -eq 1 ] && [ "$PORT_FROM_FLAG" -eq 1 ]; then NEED_ENV=0; fi
 if [ -r "$ENV_FILE" ]; then
     [ -n "$GATEWAY_HOST" ] || GATEWAY_HOST=$(sed -n 's/^[[:space:]]*HOSTNAME[[:space:]]*=[[:space:]]*\(.*\)$/\1/p' "$ENV_FILE" | head -n 1)
     [ -n "$PORT" ]         || PORT=$(sed -n 's/^[[:space:]]*APP_PORT[[:space:]]*=[[:space:]]*\([0-9]\+\).*$/\1/p' "$ENV_FILE" | head -n 1)
     tls_from_env=$(sed -n 's/^[[:space:]]*TLS_MODE[[:space:]]*=[[:space:]]*\([^[:space:]]\+\).*$/\1/p' "$ENV_FILE" | head -n 1)
     [ -n "$tls_from_env" ] && TLS_MODE="$tls_from_env"
-elif [ -f "$ENV_FILE" ]; then
+elif [ "$NEED_ENV" -eq 1 ] && [ -f "$ENV_FILE" ]; then
     # .env is 0600 root-owned (it holds POSTGRES_PASSWORD). The timer runs as
     # root and reads it fine; a manual run by an operator does not, so say so
     # plainly instead of leaking a raw `sed: Permission denied` to stderr.
     log "WARN: $ENV_FILE is not readable as $(id -un); pass --hostname/--port (or re-run with sudo)."
-else
+elif [ "$NEED_ENV" -eq 1 ]; then
     log "WARN: $ENV_FILE not found; relying on flags/defaults."
 fi
 [ -n "$GATEWAY_HOST" ] || GATEWAY_HOST=$(hostname -f 2>/dev/null || hostname)
