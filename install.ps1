@@ -83,6 +83,20 @@ other install steps run. Use when the helper was skipped/failed during install,
 OR as the recovery path when "one-click update not available" reappears after a
 prior update recreated the container without the helper overlay.
 
+.PARAMETER AddAutostart
+Standalone mode: register the boot autostart Scheduled Task on an EXISTING
+install and exit. Fetches setup-autostart.ps1 from the public repo and runs it
+against -InstallDir. Use to add reboot-survival to a box that was installed
+before autostart existed, or to switch an existing task between per-user and
+SYSTEM. Only meaningful on Docker Desktop hosts (engine/Mirantis run as a
+Windows service that already autostarts).
+
+.PARAMETER AddCertWatchdog
+Standalone mode: register the TLS certificate watchdog Scheduled Task on an
+EXISTING install and exit. Fetches setup-cert-watchdog.ps1 from the public repo
+and runs it against -InstallDir. Use to add certificate self-healing to a box
+installed before the watchdog existed, or to change the check interval.
+
 .PARAMETER Yes
 Unattended: skip all confirmation prompts and use defaults for unanswered.
 
@@ -119,6 +133,8 @@ param(
     [ValidateSet('on', 'off')]
     [string]$Helper,
     [switch]$AddHelper,
+    [switch]$AddAutostart,
+    [switch]$AddCertWatchdog,
     [switch]$NoRecreate,
     [switch]$Force,
     [switch]$UpdateDocker,
@@ -141,7 +157,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
 # Constants
-$INSTALLER_VERSION   = '1.7.6'
+$INSTALLER_VERSION   = '1.9.0'
 $DOCKER_INSTALLER_URL = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
 $WIN_BUILD_SERVER_2022 = 20348
 $PUBLIC_REPO_BASE    = 'https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main'
@@ -162,6 +178,8 @@ $Script:ReuseInstall        = $false
 $Script:EffLicense          = $null
 $Script:EffTelemetry        = $null
 $Script:EffHelper           = $null
+$Script:EffAutostart        = $null
+$Script:EffCertWatchdog     = $null
 $Script:EffHelperToken         = $null
 $Script:EffPostgresPassword    = $null
 $Script:EffConfigProtectorSeed = $null
@@ -1056,6 +1074,113 @@ function Install-Helper {
     }
 }
 
+function Resolve-Autostart {
+    # Boot autostart only matters on Docker Desktop hosts: Docker Desktop does
+    # NOT start after a reboot without an interactive sign-in, so the stack
+    # never comes up. Engine / Mirantis run as a Windows service that already
+    # autostarts, and `restart: unless-stopped` then restores the containers --
+    # no boot task needed there. So we only offer this for the 'desktop' flavor.
+    if ($Script:DockerFlavor -ne 'desktop') {
+        $Script:EffAutostart = 'off'
+        Write-Step "Boot autostart"
+        Write-Substep "Engine flavor '$($Script:DockerFlavor)' runs as a Windows service that autostarts; no boot task needed."
+        return
+    }
+    Write-Step "Boot autostart after reboot"
+    if ($Yes.IsPresent) {
+        # Unattended can't store the per-user task password (Get-Credential
+        # prompt) and SYSTEM is unreliable for WSL2 -- defer to a manual step.
+        $Script:EffAutostart = 'off'
+        Write-Ok "Autostart: skipped in unattended mode (run scripts\host\setup-autostart.ps1 once, elevated)."
+        return
+    }
+    Write-Host "    Docker Desktop does not start by itself after a reboot, so the gateway"
+    Write-Host "    would be down until someone signs in. This registers a Scheduled Task"
+    Write-Host "    ('3DX Gateway Autostart') that starts the engine + 'docker compose up -d'"
+    Write-Host "    at boot. You'll be asked for the current user's password (stored by"
+    Write-Host "    Windows so the task can run before anyone logs in)."
+    $yn = Read-YesNo "Set up autostart after reboot?" "y"
+    $Script:EffAutostart = if ($yn -eq 'y') { 'on' } else { 'off' }
+    Write-Ok "Autostart: $($Script:EffAutostart)"
+}
+
+function Install-Autostart {
+    if ($Script:EffAutostart -ne 'on') { return }
+    Write-Step "Registering boot autostart Scheduled Task"
+
+    # setup-autostart.ps1 lives in the public repo under scripts/host/. Fetch
+    # it and run it in THIS session so its Get-Credential prompt works inline.
+    # It writes <InstallDir>\host\start-3dx-stack.ps1 and registers the task.
+    $tmpdir = Join-Path $env:TEMP "3dx-gateway-autostart-$(Get-Random)"
+    New-Item -ItemType Directory -Force -Path $tmpdir | Out-Null
+    try {
+        $script = Join-Path $tmpdir 'setup-autostart.ps1'
+        Invoke-WebRequest -Uri "$PUBLIC_REPO_BASE/scripts/host/setup-autostart.ps1" `
+            -OutFile $script -UseBasicParsing -ErrorAction Stop
+        & $script -InstallDir $Script:EffInstallDir
+        Write-Ok "Boot autostart task registered (the stack will come up after a reboot)."
+    } catch {
+        # Optional, like the helper -- never abort the install over it.
+        Write-Warn2 "Autostart setup failed: $($_.Exception.Message)"
+        Write-Substep "The gateway works now; it just won't auto-start after a reboot."
+        Write-Substep "Add it later (elevated): scripts\host\setup-autostart.ps1"
+    } finally {
+        Remove-Item -Recurse -Force $tmpdir -ErrorAction SilentlyContinue
+    }
+}
+
+function Resolve-CertWatchdog {
+    # Unlike the boot autostart this is NOT Docker-Desktop-specific in principle
+    # (any ungraceful container kill can strand Caddy's storage), but it is only
+    # meaningful when Caddy actually manages a certificate for us.
+    if ($Script:EffTls -eq 'none') {
+        $Script:EffCertWatchdog = 'off'
+        return
+    }
+    Write-Step "TLS certificate watchdog"
+    # No credential to store (the task runs as SYSTEM), so unlike autostart this
+    # is safe to enable unattended.
+    if ($Yes.IsPresent) {
+        $Script:EffCertWatchdog = 'on'
+        Write-Ok "Certificate watchdog: on (unattended default)."
+        return
+    }
+    Write-Host "    Caddy's certificates live 12h and renew themselves -- but only while it can"
+    Write-Host "    read its storage volume. An ungraceful container kill (power loss, a Windows"
+    Write-Host "    Update reboot tearing down the WSL2 VM) can lose the private key: Caddy then"
+    Write-Host "    keeps serving a cached certificate it can no longer renew, and ~8h later every"
+    Write-Host "    browser shows 'Not secure' with nothing else broken. This registers a task that"
+    Write-Host "    checks the served certificate every 4h and restarts Caddy if it is stranded."
+    $yn = Read-YesNo "Set up the TLS certificate watchdog?" "y"
+    $Script:EffCertWatchdog = if ($yn -eq 'y') { 'on' } else { 'off' }
+    Write-Ok "Certificate watchdog: $($Script:EffCertWatchdog)"
+}
+
+function Install-CertWatchdog {
+    if ($Script:EffCertWatchdog -ne 'on') { return }
+    Write-Step "Registering TLS certificate watchdog Scheduled Task"
+
+    # Same fetch-and-run pattern as Install-Autostart: setup-cert-watchdog.ps1
+    # lives in the public repo under scripts/host/ and writes
+    # <InstallDir>\host\check-tls-cert.ps1 before registering the task.
+    $tmpdir = Join-Path $env:TEMP "3dx-gateway-certwatchdog-$(Get-Random)"
+    New-Item -ItemType Directory -Force -Path $tmpdir | Out-Null
+    try {
+        $script = Join-Path $tmpdir 'setup-cert-watchdog.ps1'
+        Invoke-WebRequest -Uri "$PUBLIC_REPO_BASE/scripts/host/setup-cert-watchdog.ps1" `
+            -OutFile $script -UseBasicParsing -ErrorAction Stop
+        & $script -InstallDir $Script:EffInstallDir
+        Write-Ok "Certificate watchdog registered (checks every 4h + 5 min after each boot)."
+    } catch {
+        # Optional, like the helper and autostart -- never abort the install.
+        Write-Warn2 "Certificate watchdog setup failed: $($_.Exception.Message)"
+        Write-Substep "TLS works now; it just won't self-heal if Caddy's storage is ever stranded."
+        Write-Substep "Add it later (elevated): install.ps1 -AddCertWatchdog"
+    } finally {
+        Remove-Item -Recurse -Force $tmpdir -ErrorAction SilentlyContinue
+    }
+}
+
 #--- File writing -----------------------------------------------------------
 
 function New-PostgresPassword {
@@ -1620,19 +1745,41 @@ function Show-Summary {
 
     Write-Host '  Auto-start:' -ForegroundColor Yellow
     Write-Host '    Containers use restart: unless-stopped so they survive Docker restarts.'
-    if ($Script:IsServer) {
-        Write-Host '    For host-reboot auto-start on Windows Server:'
-        Write-Host '      - Docker Engine / Mirantis MCR: the docker service is set to autostart'
-        Write-Host '        by the installer; verify with `Get-Service docker`. The compose stack'
-        Write-Host '        relaunches via restart: unless-stopped once the daemon is up.'
-        Write-Host "      - Belt-and-braces: register a Scheduled Task at boot running"
-        Write-Host "        ``docker compose -f $($Script:EffInstallDir)\docker-compose.yml up -d``"
+    if ($Script:EffAutostart -eq 'on') {
+        Write-Host '    Host-reboot auto-start: Scheduled Task "3DX Gateway Autostart" registered.'
+        Write-Host '      It starts the Docker engine + `docker compose up -d` at boot.'
+        Write-Host '      Boot log:    %PROGRAMDATA%\3DX-Gateway\autostart.log'
+        Write-Host '      Re-run/switch (per-user vs SYSTEM): scripts\host\setup-autostart.ps1 (admin)'
+        Write-Host "      Remove:      Unregister-ScheduledTask -TaskName '3DX Gateway Autostart' -Confirm:`$false"
+    } elseif ($Script:DockerFlavor -eq 'desktop') {
+        Write-Host '    Docker Desktop does NOT start after a reboot on its own, so the stack would'
+        Write-Host '    be down until someone signs in. Recommended fix (admin, one-shot):'
+        Write-Host '      scripts\host\setup-autostart.ps1'
+        Write-Host '    It registers a boot Scheduled Task that starts the engine + the stack.'
     } else {
-        Write-Host '    For host-reboot auto-start, ensure Docker Desktop is set to autostart with'
-        Write-Host '    Windows (Docker Desktop settings -> General -> Start when you log in).'
-        Write-Host "    Or use Task Scheduler: trigger ``At startup``, action ``docker compose -f $($Script:EffInstallDir)\docker-compose.yml up -d``."
+        Write-Host '    Docker Engine / Mirantis MCR: the docker service autostarts; verify with'
+        Write-Host '    `Get-Service docker`. The stack relaunches via restart: unless-stopped'
+        Write-Host '    once the daemon is up -- no boot task needed.'
     }
     Write-Host ''
+
+    if ($Script:EffTls -ne 'none') {
+        Write-Host '  TLS certificate watchdog:' -ForegroundColor Yellow
+        if ($Script:EffCertWatchdog -eq 'on') {
+            Write-Host '    Scheduled Task "3DX Gateway TLS Watchdog" registered (SYSTEM, every 4h + at boot).'
+            Write-Host '    It inspects the certificate served on :443 and the key backing it in the'
+            Write-Host '    volume, and restarts Caddy if an ungraceful shutdown stranded its storage.'
+            Write-Host '      Log:         %PROGRAMDATA%\3DX-Gateway\autostart.log  (lines tagged [tls-watchdog])'
+            Write-Host "      Run now:     Start-ScheduledTask -TaskName '3DX Gateway TLS Watchdog'"
+            Write-Host "      Remove:      Unregister-ScheduledTask -TaskName '3DX Gateway TLS Watchdog' -Confirm:`$false"
+        } else {
+            Write-Host '    NOT installed. Without it, a power loss or Windows Update reboot that strands'
+            Write-Host '    Caddy''s storage leaves the site on an expiring certificate ("Not secure" in'
+            Write-Host '    every browser) until someone notices. Add it later (admin):'
+            Write-Host '      install.ps1 -AddCertWatchdog'
+        }
+        Write-Host ''
+    }
 
     if ($Script:EffHelper -eq 'on') {
         Write-Host '  Apply Update helper:' -ForegroundColor Yellow
@@ -1684,6 +1831,10 @@ function Confirm-Summary {
     Write-Host "    license:      $licDisplay"
     Write-Host "    telemetry:    $($Script:EffTelemetry)"
     Write-Host "    helper:       $($Script:EffHelper)"
+    Write-Host "    autostart:    $($Script:EffAutostart)"
+    if ($Script:EffTls -ne 'none') {
+        Write-Host "    watchdog:     $($Script:EffCertWatchdog)  (TLS certificate self-heal)"
+    }
     $yn = Read-YesNo 'Proceed?' 'y'
     if ($yn -ne 'y') {
         Throw-Stop 'Cancelled.'
@@ -1783,12 +1934,53 @@ function Invoke-AddHelper {
     Write-Substep "The apply worker reads the authoritative compose-set.json at apply time, so future one-click updates always reconcile against the live compose set (overlays included)."
 }
 
+function Invoke-AddAutostart {
+    # Standalone: register the boot autostart task on an EXISTING install + exit.
+    Write-Step "Add boot autostart to an existing install"
+    $dir = if ($InstallDir) { $InstallDir } else { $DEFAULT_INSTALL_DIR }
+    if (-not (Test-Path (Join-Path $dir 'docker-compose.yml'))) {
+        Throw-Stop "No gateway install found at $dir (docker-compose.yml missing). Pass -InstallDir if it lives elsewhere."
+    }
+    $Script:EffInstallDir = $dir
+    if ($DryRun.IsPresent) {
+        Write-Step "DRY RUN -- would fetch setup-autostart.ps1 and register the '3DX Gateway Autostart' task against $dir."
+        return
+    }
+    # -AddAutostart is an explicit operator request, so honor it regardless of
+    # detected flavor (operator may know the box better than our heuristic).
+    $Script:EffAutostart = 'on'
+    Install-Autostart
+}
+
+function Invoke-AddCertWatchdog {
+    # Standalone: register the TLS watchdog on an EXISTING install + exit.
+    Write-Step "Add the TLS certificate watchdog to an existing install"
+    $dir = if ($InstallDir) { $InstallDir } else { $DEFAULT_INSTALL_DIR }
+    if (-not (Test-Path (Join-Path $dir 'docker-compose.yml'))) {
+        Throw-Stop "No gateway install found at $dir (docker-compose.yml missing). Pass -InstallDir if it lives elsewhere."
+    }
+    $Script:EffInstallDir = $dir
+    # A TLS overlay on disk means Caddy is managing a certificate for us; that
+    # is the whole precondition for the watchdog.
+    if (-not (Test-Path (Join-Path $dir 'docker-compose.tls.yml'))) {
+        Throw-Stop "This install has no Caddy TLS overlay (docker-compose.tls.yml missing), so there is no certificate to watch."
+    }
+    if ($DryRun.IsPresent) {
+        Write-Step "DRY RUN -- would fetch setup-cert-watchdog.ps1 and register the '3DX Gateway TLS Watchdog' task against $dir."
+        return
+    }
+    $Script:EffCertWatchdog = 'on'
+    Install-CertWatchdog
+}
+
 #--- Main -------------------------------------------------------------------
 
 function Main {
     Show-Banner
     Require-Admin
     if ($AddHelper.IsPresent) { Invoke-AddHelper; return }
+    if ($AddAutostart.IsPresent) { Invoke-AddAutostart; return }
+    if ($AddCertWatchdog.IsPresent) { Invoke-AddCertWatchdog; return }
     Test-OS
     Test-Docker
     Test-Disk
@@ -1802,6 +1994,8 @@ function Main {
     Resolve-License
     Resolve-Telemetry
     Resolve-Helper
+    Resolve-Autostart
+    Resolve-CertWatchdog
     Confirm-Summary
 
     if ($DryRun.IsPresent) {
@@ -1815,6 +2009,8 @@ function Main {
     Write-Files
     Start-Stack
     Set-FirewallRules
+    Install-Autostart
+    Install-CertWatchdog
     Invoke-SmokeTest
     Show-Summary
 }
