@@ -68,7 +68,12 @@ log() {
     local line
     line="$(date '+%Y-%m-%d %H:%M:%S')  [tls-watchdog] $*"
     echo "$line"
-    echo "$line" >> "$LOG_FILE" 2>/dev/null || true
+    # The redirect must be inside the group: a FAILED redirect is reported by
+    # the shell itself before the command runs, so `>> file 2>/dev/null` still
+    # prints "Permission denied" and `|| true` cannot suppress it. That happens
+    # on every manual run by a non-root operator (the log lives in the install
+    # dir, which is root-owned) and made a working check look broken.
+    { echo "$line" >> "$LOG_FILE"; } 2>/dev/null || true
 }
 
 # --- Read the install's own settings out of .env -----------------------------
@@ -77,11 +82,16 @@ log() {
 # the shell's own HOSTNAME.
 TLS_MODE="auto"
 ENV_FILE="${INSTALL_DIR}/.env"
-if [ -f "$ENV_FILE" ]; then
+if [ -r "$ENV_FILE" ]; then
     [ -n "$GATEWAY_HOST" ] || GATEWAY_HOST=$(sed -n 's/^[[:space:]]*HOSTNAME[[:space:]]*=[[:space:]]*\(.*\)$/\1/p' "$ENV_FILE" | head -n 1)
     [ -n "$PORT" ]         || PORT=$(sed -n 's/^[[:space:]]*APP_PORT[[:space:]]*=[[:space:]]*\([0-9]\+\).*$/\1/p' "$ENV_FILE" | head -n 1)
     tls_from_env=$(sed -n 's/^[[:space:]]*TLS_MODE[[:space:]]*=[[:space:]]*\([^[:space:]]\+\).*$/\1/p' "$ENV_FILE" | head -n 1)
     [ -n "$tls_from_env" ] && TLS_MODE="$tls_from_env"
+elif [ -f "$ENV_FILE" ]; then
+    # .env is 0600 root-owned (it holds POSTGRES_PASSWORD). The timer runs as
+    # root and reads it fine; a manual run by an operator does not, so say so
+    # plainly instead of leaking a raw `sed: Permission denied` to stderr.
+    log "WARN: $ENV_FILE is not readable as $(id -un); pass --hostname/--port (or re-run with sudo)."
 else
     log "WARN: $ENV_FILE not found; relying on flags/defaults."
 fi
