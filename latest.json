@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.65",
+    "version": "1.1.66",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Automatsko generisanje bez potvrda (Podesavanja > Funkcije, podrazumevano iskljuceno): kada je ukljuceno, izvoz vise ne staje na pitanje 'Nesnimljene promene' za benigne sklopove (auto-razresene reference 3DX konektora) niti na zatvaranje cistih dokumenata van sastavnice. Izmenjeni delovi i crtezi i dalje traze potvrdu. Nista se ne snima na platformu; svezina izvora i dalje radi.",
+    "changelog": "Komponente koje su u SolidWorks-u oznacene sa \"Exclude from bill of materials\" vise se ne prikazuju u sastavnici i ne ulaze ni u izvoz ni u generisanje dokumentacije. Oznaka vazi po pojavi, pa isti deo moze biti izuzet na jednom mestu a uracunat na drugom - kolicine se u tom slucaju smanjuju. Ako podatak o izuzimanju nije dostupan, sastavnica se prikazuje nepromenjena.",
     "sha256": null
   },
   "cadBridge": {
