@@ -884,6 +884,19 @@ once to add it (and pull the latest image). Verify with
 
 ### Browser says "Not secure" but the gateway otherwise works
 
+**First, settle which half is broken — the answer decides everything below:**
+
+```bash
+# on the server
+echo | openssl s_client -connect 127.0.0.1:443 -servername <fqdn> 2>/dev/null \
+  | openssl x509 -noout -dates -ext subjectAltName
+```
+
+If the dates are **expired**, it is the server's certificate — continue with this
+section. If the certificate is **valid** and only some workstations complain, the
+server is fine and the workstation does not trust the issuing CA; skip to
+"Not secure on one workstation only" below.
+
 Everything loads, logins work, the app answers — only the padlock is broken,
 on **every** workstation. That means the server's own certificate expired, not
 that a workstation lost trust in the CA. Re-running `Setup.bat` changes nothing:
@@ -923,6 +936,44 @@ sudo bash setup-cert-watchdog.sh --install-dir /opt/3dx-gateway
 
 New installs get it by default. It also catches the underlying damage *before*
 the certificate expires, so in practice nobody sees the warning again.
+
+### "Not secure" on one workstation only, with a valid server certificate
+
+The server's certificate checks out (see the `openssl` check above) but a
+particular machine still shows the warning. That machine is missing the CA that
+signed it — and the reason is almost always that it has a *different* Caddy CA
+installed and nobody noticed, because **every Caddy local CA is named exactly
+`Caddy Local Authority - <year> ECC Root`**. A trust store can hold several of
+them, all showing that same name, none of them the right one. Names prove
+nothing here; compare **fingerprints**.
+
+This is a real configuration, not a corner case: any host running more than one
+gateway stack (e.g. a dev stack alongside a customer-style install) has one CA
+per stack, each with its own `caddy_data` volume, each with that same name.
+
+```bash
+# server — fingerprint of the CA behind the site being opened
+docker exec <caddy-container> cat /data/caddy/pki/authorities/local/root.crt > /tmp/root.crt
+openssl x509 -in /tmp/root.crt -noout -subject -fingerprint -sha256
+```
+
+```powershell
+# workstation — what is actually trusted, by fingerprint
+Get-ChildItem Cert:\LocalMachine\Root, Cert:\CurrentUser\Root |
+  Where-Object { $_.Subject -like '*Caddy*' } |
+  Select-Object Subject, @{n='SHA256';e={$_.GetCertHashString('SHA256')}}
+```
+
+If the server's fingerprint is absent, install that CA and restart the browser:
+
+```powershell
+# elevated PowerShell; the file is also served at https://<host>/caddy-ca.crt
+certutil -addstore -f Root "C:\path\to\caddy-ca.crt"
+```
+
+Elevation is required. Adding a root to `Cert:\CurrentUser\Root` from a script
+fails with `UI is not allowed in this operation` — Windows demands interactive
+confirmation for that store, so an automated or remote session cannot do it.
 
 ### Setup.bat "Unknown publisher" or "Run scripts from Internet?" prompt
 
