@@ -82,6 +82,46 @@ function Log([string]$m) {
     Write-Output $line
     try { Add-Content -Path $LogFile -Value $line -ErrorAction Stop } catch { }
 }
+function Resolve-ComposeArgs([string]$dir) {
+    $setFile = Join-Path $env:ProgramData '3dx-gateway\compose-set.json'
+    if (Test-Path $setFile) {
+        try {
+            $s = Get-Content -Path $setFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            $files = @($s.composeFiles | Where-Object { $_ })
+            $missing = @($files | Where-Object { -not (Test-Path $_) })
+            if ($files.Count -gt 0 -and $missing.Count -eq 0) {
+                $a = @()
+                if ($s.project) { $a += @('--project-name', $s.project) }
+                foreach ($f in $files) { $a += @('-f', $f) }
+                if ($s.envFile -and (Test-Path $s.envFile)) { $a += @('--env-file', $s.envFile) }
+                return @{ Args = $a; Source = 'compose-set.json' }
+            }
+            if ($missing.Count -gt 0) {
+                Log "WARN: compose-set.json lists missing file(s): $($missing -join '; ') -- falling back to on-disk probe"
+            } else {
+                Log "WARN: compose-set.json has no composeFiles -- falling back to on-disk probe"
+            }
+        } catch {
+            Log "WARN: compose-set.json unreadable ($($_.Exception.Message)) -- falling back to on-disk probe"
+        }
+    }
+    $hasToken = $false
+    $envPath = Join-Path $dir '.env'
+    if (Test-Path $envPath) {
+        try { $hasToken = [bool](Select-String -Path $envPath -Pattern '^\s*HELPER_TOKEN\s*=\s*\S' -Quiet) } catch { }
+    }
+    $a = @()
+    foreach ($n in @('docker-compose.yml', 'docker-compose.tls.yml', 'docker-compose.helper.windows.yml')) {
+        $p = Join-Path $dir $n
+        if (-not (Test-Path $p)) { continue }
+        if ($n -eq 'docker-compose.helper.windows.yml' -and -not $hasToken) {
+            Log "WARN: $n present but HELPER_TOKEN missing from .env -- skipping it (re-run install.ps1 -AddHelper to fix)"
+            continue
+        }
+        $a += @('-f', $n)
+    }
+    return @{ Args = $a; Source = 'on-disk probe' }
+}
 Log "=== 3DX Gateway autostart begin (ComposeDir=$ComposeDir) ==="
 try {
     $svc = Get-Service -Name 'com.docker.service' -ErrorAction Stop
@@ -126,11 +166,22 @@ if (-not (Test-Path $ComposeDir)) {
     exit 1
 }
 Set-Location -Path $ComposeDir
-Log "Running: docker compose up -d"
-$out = docker compose up -d 2>&1
+$ctx = Resolve-ComposeArgs $ComposeDir
+$composeArgs = @($ctx.Args)
+Log "compose set ($($ctx.Source)): docker compose $($composeArgs -join ' ') up -d"
+$out = docker compose @composeArgs up -d 2>&1
 foreach ($l in $out) { Log "  $l" }
-Log "compose up -d exit code: $LASTEXITCODE"
-$ps = docker compose ps 2>&1
+$upExit = $LASTEXITCODE
+Log "compose up -d exit code: $upExit"
+if ($upExit -ne 0 -and $composeArgs.Count -gt 2) {
+    Log "WARN: up -d failed with the full overlay set -- retrying with docker-compose.yml only so the gateway is at least reachable."
+    Log "WARN: after this fallback the app runs WITHOUT the TLS/helper overlays. Fix with: install.ps1 -AddHelper -NoRecreate"
+    $out = docker compose -f docker-compose.yml up -d 2>&1
+    foreach ($l in $out) { Log "  $l" }
+    Log "fallback compose up -d exit code: $LASTEXITCODE"
+    $composeArgs = @('-f', 'docker-compose.yml')
+}
+$ps = docker compose @composeArgs ps 2>&1
 foreach ($l in $ps) { Log "  $l" }
 Log "=== 3DX Gateway autostart end ==="
 exit 0
