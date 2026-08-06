@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.68",
+    "version": "1.1.69",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "ZIP arhiva se sada snima u izabranu lokaciju umesto u Downloads folder pretrazivaca. Preuzimanje isporucuje samo formate koji su stiklirani - ranije su se dodavali i formati zatecen u kesu iz ranijih generisanja, pa su se u arhivi pojavljivali PDF-ovi i kada su bili trazeni samo DXF-ovi. DXF fajlovi iz ranijih prolaza vise ne ulaze u isporuku. Ako neki fajl ipak ne moze da se upise u izabrani folder, na kraju se prijavljuje koji je i zasto, umesto da tiho zavrsi u Downloads folderu.",
+    "changelog": "Preuzimanje sada isporucuje samo formate koji su stiklirani i u ponovljenom prolazu po vec kesiranoj stavci - ranije se ta provera u tom slucaju uopste nije aktivirala. DXF fajlovi koje trenutni prolaz nije napravio vise ne ulaze u isporuku. Ako pomocni agent odbije citljivo ime fajla, fajl se snima pod sistemskim imenom u izabrani folder umesto da zavrsi u Downloads folderu, i to se prijavljuje u statusnoj liniji.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.95",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.95/CadBridge-Setup.zip",
-    "changelog": "Brze pokretanje sa hladnog kesa: vise se ne pred-otvaraju nekesirani crtezi tokom pokretanja (jedan crtez je znao da traje minutima); crtezi se otvaraju u sekundama tokom samog izvoza. Bez promene rezultata.",
-    "sha256": "9e09d7b75b67e45545a936340dd0c516205f2e948d4a58b7ddadeb0184dd2a2f"
+    "version": "1.8.96",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.96/CadBridge-Setup.zip",
+    "changelog": "DXF se sada izvozi iskljucivo iz aktivnog lista crteza. SOLIDWORKS opcija za DXF/DWG izvoz (broj listova) je po radnoj stanici i umela je da bude podesena na sve listove - tada je jedan DXF fajl sadrzao i listove koji nisu DXF, pod ispravnim imenom. Agent tu opciju sada postavlja na aktivan list za vreme izvoza, vraca je odmah posle, i uklanja dodatne fajlove koje SOLIDWORKS eventualno napravi pored trazenog.",
+    "sha256": "9335c0bc20ea39f2cb11d3977df15bd93e57e991720daaf17d3e805d3f3e3ede"
   }
 }
