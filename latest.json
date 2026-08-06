@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.67",
+    "version": "1.1.68",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Prilozi i specifikacije sa platforme se sada zaista isporucuju u izabrani folder ili ZIP kada se potvrdi Preuzimanje - ranije su zavrsavali samo na serveru, iako je izvestaj javljao da su preuzeti. Prilog koji je vec preuzet vise se ne prikazuje kao generisan dokument, nego kao prilog, bez obzira na to da li je prikaz 3DX dokumenata ukljucen. Na Windows serverima gde marker o vrsti hosta nedostaje, uputstvo za rucno azuriranje sada prikazuje PowerShell komandu umesto Linux ssh komande.",
+    "changelog": "ZIP arhiva se sada snima u izabranu lokaciju umesto u Downloads folder pretrazivaca. Preuzimanje isporucuje samo formate koji su stiklirani - ranije su se dodavali i formati zatecen u kesu iz ranijih generisanja, pa su se u arhivi pojavljivali PDF-ovi i kada su bili trazeni samo DXF-ovi. DXF fajlovi iz ranijih prolaza vise ne ulaze u isporuku. Ako neki fajl ipak ne moze da se upise u izabrani folder, na kraju se prijavljuje koji je i zasto, umesto da tiho zavrsi u Downloads folderu.",
     "sha256": null
   },
   "cadBridge": {
