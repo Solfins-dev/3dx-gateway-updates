@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.66",
+    "version": "1.1.67",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Komponente koje su u SolidWorks-u oznacene sa \"Exclude from bill of materials\" vise se ne prikazuju u sastavnici i ne ulaze ni u izvoz ni u generisanje dokumentacije. Oznaka vazi po pojavi, pa isti deo moze biti izuzet na jednom mestu a uracunat na drugom - kolicine se u tom slucaju smanjuju. Ako podatak o izuzimanju nije dostupan, sastavnica se prikazuje nepromenjena.",
+    "changelog": "Prilozi i specifikacije sa platforme se sada zaista isporucuju u izabrani folder ili ZIP kada se potvrdi Preuzimanje - ranije su zavrsavali samo na serveru, iako je izvestaj javljao da su preuzeti. Prilog koji je vec preuzet vise se ne prikazuje kao generisan dokument, nego kao prilog, bez obzira na to da li je prikaz 3DX dokumenata ukljucen. Na Windows serverima gde marker o vrsti hosta nedostaje, uputstvo za rucno azuriranje sada prikazuje PowerShell komandu umesto Linux ssh komande.",
     "sha256": null
   },
   "cadBridge": {
