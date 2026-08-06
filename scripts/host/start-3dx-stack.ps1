@@ -12,7 +12,16 @@
 #   1. Ensures the privileged engine service (com.docker.service) is running.
 #   2. Launches Docker Desktop so the WSL2 Linux engine initialises.
 #   3. Waits until `docker version` returns a Server (engine ready).
-#   4. Runs `docker compose up -d` in the compose directory.
+#   4. Runs `docker compose <the install's real -f set> up -d` in the compose dir.
+#
+# Step 4 MUST pass the install's overlay set. A bare `docker compose up -d`
+# reconciles against docker-compose.yml ONLY, which silently RECREATES the app
+# container without the overlays: the Apply Update helper wiring
+# (Updates__HelperEndpoint / Updates__HelperToken / Updates__HostKind) and the
+# Caddy TLS service vanish. Symptoms seen on delmiaworks04 after the 2026-06-30
+# autostart landed: Settings -> Updates shows "one-click update not available"
+# plus a Linux ssh fallback command on a Windows host, and `3dx-gateway-caddy`
+# is reported as an orphan container.
 #
 # The compose services already carry `restart: unless-stopped`, so once the
 # engine is up Docker restores them automatically; the explicit `compose up -d`
@@ -34,6 +43,56 @@ function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'), $m
     Write-Output $line
     try { Add-Content -Path $LogFile -Value $line -ErrorAction Stop } catch { }
+}
+
+# Resolve the install's real compose file set, same precedence the Apply Update
+# worker uses: (1) the authoritative manifest written by install.ps1 -AddHelper /
+# install-helper.ps1, (2) an on-disk probe of the known overlay names. Never a
+# bare `up -d` when overlays exist -- that is the drift that strips helper + TLS.
+function Resolve-ComposeArgs([string]$dir) {
+    $setFile = Join-Path $env:ProgramData '3dx-gateway\compose-set.json'
+    if (Test-Path $setFile) {
+        try {
+            $s = Get-Content -Path $setFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            $files = @($s.composeFiles | Where-Object { $_ })
+            $missing = @($files | Where-Object { -not (Test-Path $_) })
+            if ($files.Count -gt 0 -and $missing.Count -eq 0) {
+                $a = @()
+                if ($s.project) { $a += @('--project-name', $s.project) }
+                foreach ($f in $files) { $a += @('-f', $f) }
+                if ($s.envFile -and (Test-Path $s.envFile)) { $a += @('--env-file', $s.envFile) }
+                return @{ Args = $a; Source = 'compose-set.json' }
+            }
+            if ($missing.Count -gt 0) {
+                Log "WARN: compose-set.json lists missing file(s): $($missing -join '; ') -- falling back to on-disk probe"
+            } else {
+                Log "WARN: compose-set.json has no composeFiles -- falling back to on-disk probe"
+            }
+        } catch {
+            Log "WARN: compose-set.json unreadable ($($_.Exception.Message)) -- falling back to on-disk probe"
+        }
+    }
+
+    # Probe. The helper overlay interpolates `${HELPER_TOKEN:?...}`, so including
+    # it without a token in .env would fail the WHOLE `up -d` and leave the
+    # gateway down at boot -- worse than losing one-click. Include it only when
+    # the token is actually there.
+    $hasToken = $false
+    $envPath = Join-Path $dir '.env'
+    if (Test-Path $envPath) {
+        try { $hasToken = [bool](Select-String -Path $envPath -Pattern '^\s*HELPER_TOKEN\s*=\s*\S' -Quiet) } catch { }
+    }
+    $a = @()
+    foreach ($n in @('docker-compose.yml', 'docker-compose.tls.yml', 'docker-compose.helper.windows.yml')) {
+        $p = Join-Path $dir $n
+        if (-not (Test-Path $p)) { continue }
+        if ($n -eq 'docker-compose.helper.windows.yml' -and -not $hasToken) {
+            Log "WARN: $n present but HELPER_TOKEN missing from .env -- skipping it (one-click Apply stays unavailable; re-run install.ps1 -AddHelper to fix)"
+            continue
+        }
+        $a += @('-f', $n)
+    }
+    return @{ Args = $a; Source = 'on-disk probe' }
 }
 
 Log "=== 3DX Gateway autostart begin (ComposeDir=$ComposeDir) ==="
@@ -89,13 +148,29 @@ if (-not (Test-Path $ComposeDir)) {
     exit 1
 }
 Set-Location -Path $ComposeDir
-Log "Running: docker compose up -d"
-$out = docker compose up -d 2>&1
+$ctx = Resolve-ComposeArgs $ComposeDir
+$composeArgs = @($ctx.Args)
+Log "compose set ($($ctx.Source)): docker compose $($composeArgs -join ' ') up -d"
+$out = docker compose @composeArgs up -d 2>&1
 foreach ($l in $out) { Log "  $l" }
-Log "compose up -d exit code: $LASTEXITCODE"
+$upExit = $LASTEXITCODE
+Log "compose up -d exit code: $upExit"
+
+# Boot resilience: if the full set fails (bad overlay, missing var), still get
+# the gateway up with the base file rather than leaving the server dark. Loud
+# WARN because the app then runs WITHOUT the overlays -- one-click Apply and
+# Caddy TLS are degraded until the operator fixes the set.
+if ($upExit -ne 0 -and $composeArgs.Count -gt 2) {
+    Log "WARN: up -d failed with the full overlay set -- retrying with docker-compose.yml only so the gateway is at least reachable."
+    Log "WARN: after this fallback the app runs WITHOUT the TLS/helper overlays. Fix with: install.ps1 -AddHelper -NoRecreate"
+    $out = docker compose -f docker-compose.yml up -d 2>&1
+    foreach ($l in $out) { Log "  $l" }
+    Log "fallback compose up -d exit code: $LASTEXITCODE"
+    $composeArgs = @('-f', 'docker-compose.yml')
+}
 
 # 5. Quick confirmation -------------------------------------------------------
-$ps = docker compose ps 2>&1
+$ps = docker compose @composeArgs ps 2>&1
 foreach ($l in $ps) { Log "  $l" }
 
 Log "=== 3DX Gateway autostart end ==="
