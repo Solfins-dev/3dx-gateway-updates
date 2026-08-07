@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.69",
+    "version": "1.1.70",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Preuzimanje sada isporucuje samo formate koji su stiklirani i u ponovljenom prolazu po vec kesiranoj stavci - ranije se ta provera u tom slucaju uopste nije aktivirala. DXF fajlovi koje trenutni prolaz nije napravio vise ne ulaze u isporuku. Ako pomocni agent odbije citljivo ime fajla, fajl se snima pod sistemskim imenom u izabrani folder umesto da zavrsi u Downloads folderu, i to se prijavljuje u statusnoj liniji.",
+    "changelog": "Ispravljeno: kada su svi fajlovi vec bili napravljeni u nekom ranijem prolazu, DXF se nije isporucivao - PDF, STEP i ostali formati su stizali, a DXF je tiho izostajao. Ako DXF ipak ne stigne, statusna linija to sada izricito kaze na pocetku, umesto da prolaz izgleda kao potpuno uspesan.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.96",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.96/CadBridge-Setup.zip",
-    "changelog": "DXF se sada izvozi iskljucivo iz aktivnog lista crteza. SOLIDWORKS opcija za DXF/DWG izvoz (broj listova) je po radnoj stanici i umela je da bude podesena na sve listove - tada je jedan DXF fajl sadrzao i listove koji nisu DXF, pod ispravnim imenom. Agent tu opciju sada postavlja na aktivan list za vreme izvoza, vraca je odmah posle, i uklanja dodatne fajlove koje SOLIDWORKS eventualno napravi pored trazenog.",
-    "sha256": "9335c0bc20ea39f2cb11d3977df15bd93e57e991720daaf17d3e805d3f3e3ede"
+    "version": "1.8.97",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.97/CadBridge-Setup.zip",
+    "changelog": "DXF fajlovi napravljeni pre prethodne nadogradnje ostajali su u lokalnoj memoriji radne stanice i isporucivali se nepromenjeni - zato se posle azuriranja na 1.8.96 kod nekih korisnika nista nije promenilo. Agent ih sada jednokratno osvezava sam, pri prvom sledecem izvozu DXF-a. Uz to, kada se fajl uzima iz lokalne memorije umesto da se pravi ponovo, agent to sada prijavljuje, pa isporuka vise ne moze da ga izostavi.",
+    "sha256": "bb585fcb57da29ff49b9250032ebb0db727c94f0a1823638af6a420d3d0ea699"
   }
 }
