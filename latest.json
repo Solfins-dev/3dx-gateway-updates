@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.70",
+    "version": "1.1.71",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Ispravljeno: kada su svi fajlovi vec bili napravljeni u nekom ranijem prolazu, DXF se nije isporucivao - PDF, STEP i ostali formati su stizali, a DXF je tiho izostajao. Ako DXF ipak ne stigne, statusna linija to sada izricito kaze na pocetku, umesto da prolaz izgleda kao potpuno uspesan.",
+    "changelog": "Ispravljeno: kada je neko izmenio geometriju dela na platformi bez podizanja revizije, generisanje je i dalje isporucivalo stare fajlove - i to je ostajalo tako trajno, jer ime fajla se ne menja pa je sistem svaki sledeci prolaz smatrao da je vec sve napravljeno. Gateway sada prepoznaje izmenu same geometrije (ranije je pratio samo izmene na stavci, ne i na 3D modelu) i trazi ponovno generisanje samo za pogodjene fajlove. Napomena: prvi prolaz posle nadogradnje osvezava sve pracene stavke jednom, pa moze trajati duze nego obicno.",
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.97",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.97/CadBridge-Setup.zip",
-    "changelog": "DXF fajlovi napravljeni pre prethodne nadogradnje ostajali su u lokalnoj memoriji radne stanice i isporucivali se nepromenjeni - zato se posle azuriranja na 1.8.96 kod nekih korisnika nista nije promenilo. Agent ih sada jednokratno osvezava sam, pri prvom sledecem izvozu DXF-a. Uz to, kada se fajl uzima iz lokalne memorije umesto da se pravi ponovo, agent to sada prijavljuje, pa isporuka vise ne moze da ga izostavi.",
-    "sha256": "bb585fcb57da29ff49b9250032ebb0db727c94f0a1823638af6a420d3d0ea699"
+    "version": "1.8.98",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.98/CadBridge-Setup.zip",
+    "changelog": "Agent sada pamti iz kog CAD fajla je nastao svaki generisani dokument. Ako se taj CAD fajl u medjuvremenu promenio, dokument se pravi ponovo - i onda kada mu je ime ostalo isto, sto je do sada bilo dovoljno da se preskoci. Time se zatvara slucaj u kome je izmena geometrije bez nove revizije zauvek isporucivala stari PDF, DXF, STEP ili 3D PDF. Ako ponovno pravljenje ne uspe, postojeci fajl se i dalje isporucuje, a razlog se ispisuje u statusu.",
+    "sha256": "367ba8a22dd61e6797d3c7d707def2ba01057184619987460b284fa74b657892"
   }
 }
