@@ -17,6 +17,20 @@ All three pull updates from a public manifest hourly. No outbound traffic
 besides the manifest poll, the `ghcr.io` image pull, and the
 `Solfins-dev/3dx-gateway-updates` GitHub Release for the CadBridge ZIP.
 
+### Two ways to run the server
+
+The table above describes the **Docker** delivery, which is the default and the
+one to pick unless something rules it out.
+
+If your server **cannot run Docker** — most often a Windows Server that also
+hosts other applications, where Docker Desktop is not supported and Linux
+containers are not available — there is a **native Windows** delivery instead:
+the same gateway, running as three ordinary Windows services, no containers
+anywhere. See [Step 1.C](#1c-windows-server-without-docker-native-services).
+
+Everything after Step 1 — configuration, CadBridge on the workstations,
+updates — is identical for both. Only the server install differs.
+
 ---
 
 ## Before you start — prerequisites
@@ -360,6 +374,141 @@ For LAN access from workstations you'll want HTTPS. Two common patterns:
 
 Whichever route you pick, the gateway URL workstations will use is
 something like `https://gateway.yourcompany.local`.
+
+---
+
+### 1.C Windows Server without Docker (native services)
+
+Use this when the server cannot run Docker. That is usually a Windows Server
+edition — Docker Desktop is not supported there, and the native Windows Docker
+engine runs Windows containers only — or a server shared with other
+applications, where installing a container runtime is not on the table.
+
+Nothing about the gateway changes. It is the same application, the same
+database, the same web UI. Only the packaging differs:
+
+| Service | What it is |
+| --- | --- |
+| `3DXGateway` | The backend. Ships with its own .NET runtime, so nothing is installed machine-wide. |
+| `3DXGatewayDb` | PostgreSQL 16, from the official binaries. No MSI, no installer, no shared instance. |
+| `3DXGatewayProxy` | Caddy, terminating TLS and issuing the certificate workstations trust. |
+
+All three are ordinary Automatic services. **They start at boot with nobody
+signed in** — which the Docker Desktop route on Windows cannot do.
+
+#### Designed for a shared server
+
+This installer assumes the machine is already doing other work, and behaves
+accordingly:
+
+- **It never binds port 80.** That port stays with IIS, or whatever else has it.
+- **It never stops another service.** Every port it wants is probed first, and
+  it moves to a free one rather than taking anything.
+- **It installs nothing machine-wide** — no shared runtime, no PATH changes, no
+  registry policy. Removing it leaves the server as it was.
+
+#### Prerequisites
+
+- Windows Server 2019+ or Windows 10 21H2+, 64-bit
+- Administrator rights (it registers services)
+- Outbound HTTPS to `raw.githubusercontent.com` and `github.com`
+- Two free inbound TCP ports for workstations: one for HTTPS, one small one used
+  only to hand out the certificate. Defaults are 443 and 8081; if either is
+  taken the installer picks another and tells you which.
+
+#### Install
+
+Download from the **Installer release** — browsers save the file instead of
+displaying it as text:
+
+> https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/installer/install-native.ps1
+
+Then, in an **elevated PowerShell**:
+
+```pwsh
+Set-ExecutionPolicy Bypass -Scope Process -Force
+& $env:USERPROFILE\Downloads\install-native.ps1 -License C:\path\to\license.lic
+```
+
+The installer downloads the current gateway version from the same manifest the
+update channel uses, verifies its checksum, creates the database, registers the
+three services, opens its own firewall ports, and finishes with a summary. It
+asks for the hostname and confirms the ports; everything else is automatic.
+Budget about ten minutes, most of it downloading.
+
+**The hostname matters more than it looks.** It must be the name workstations
+will type. The certificate is issued for that name, and the gateway answers only
+under it — a gateway installed under `SERVER01` will not respond to
+`server01.company.local`, with no error that says so.
+
+Common options:
+
+| Option | Default | When to use |
+| --- | --- | --- |
+| `-HostName` | this machine's FQDN | Workstations reach the server under a different DNS name |
+| `-Port` | `443` | Something already serves HTTPS on this machine |
+| `-HttpPort` | `8081` | Only used to hand out the certificate. `0` turns it off; the certificate is then served over HTTPS only |
+| `-InstallDir` | `C:\Program Files\3DX Gateway` | Program files belong on another drive |
+| `-DataDir` | `C:\ProgramData\3DX-Gateway` | Database and configuration belong on another drive |
+| `-License` | *(none)* | Your `license.lic`. Can be added later |
+| `-AppZip` | *(from the manifest)* | Install a specific version, or install with no internet access |
+| `-Yes` | *(asks)* | Unattended install for scripted deployment |
+
+#### After it finishes
+
+The summary prints two addresses. The second one is the one to keep:
+
+```
+  URL             https://gateway.yourcompany.local
+  CA for clients  http://gateway.yourcompany.local:8081/caddy-ca.crt
+```
+
+Workstations need to trust that certificate, but **you do not have to do
+anything with that address by hand** — the CadBridge installer in Step 3 fetches
+and installs it for you. Continue with Step 2 exactly as written.
+
+#### Updates
+
+Identical to the Docker path: **Settings → Updates → Apply Update**. The gateway
+downloads the new version, verifies its checksum, backs up the database, swaps
+itself over and restarts. If the new version fails to come up, it puts the old
+one back on its own and stays running.
+
+Your settings, license and database live in `DataDir` and are untouched by an
+update. The previous version is kept on disk, so a rollback is available.
+
+#### Removing it
+
+```pwsh
+& $env:USERPROFILE\Downloads\uninstall-native.ps1
+```
+
+Removes the three services, the firewall rules and the program files, and
+**keeps your data** — database, settings and certificate — so a reinstall picks
+up where you left off. Add `-RemoveData` to delete that too. It asks first, and
+it refuses to touch a Docker install.
+
+> ⚠ `-RemoveData` deletes the encryption seed that protects your stored ERP
+> credentials, and the certificate every workstation has trusted. Neither can be
+> recovered, and a new certificate means visiting every workstation again.
+
+#### If workstations cannot install CadBridge
+
+Symptom: the CadBridge installer stops at *"Failed to download CA cert"*.
+
+Servers installed **before 14 August 2026** can have the certificate stored
+outside the directory the gateway serves it from, in which case that address
+returns "not found" while the gateway itself looks perfectly healthy. On the
+server, in an elevated PowerShell:
+
+```pwsh
+irm https://raw.githubusercontent.com/Solfins-dev/3dx-gateway-updates/main/scripts/host/repair-native-ca-storage.ps1 -OutFile $env:TEMP\repair.ps1
+& $env:TEMP\repair.ps1 -DataDir C:\ProgramData\3DX-Gateway
+```
+
+It moves the existing certificate into place rather than issuing a new one, so
+workstations that already trust it stay working. Installs made after that date
+are not affected.
 
 ---
 
