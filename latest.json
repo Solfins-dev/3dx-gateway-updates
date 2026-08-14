@@ -7,10 +7,10 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.98",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.98/CadBridge-Setup.zip",
-    "changelog": "Agent sada pamti iz kog CAD fajla je nastao svaki generisani dokument. Ako se taj CAD fajl u medjuvremenu promenio, dokument se pravi ponovo - i onda kada mu je ime ostalo isto, sto je do sada bilo dovoljno da se preskoci. Time se zatvara slucaj u kome je izmena geometrije bez nove revizije zauvek isporucivala stari PDF, DXF, STEP ili 3D PDF. Ako ponovno pravljenje ne uspe, postojeci fajl se i dalje isporucuje, a razlog se ispisuje u statusu.",
-    "sha256": "367ba8a22dd61e6797d3c7d707def2ba01057184619987460b284fa74b657892"
+    "version": "1.8.99",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.99/CadBridge-Setup.zip",
+    "changelog": "Agent sada pamti iz kog CAD fajla je nastao svaki generisani dokument. Ako se taj CAD fajl u medjuvremenu promenio, dokument se pravi ponovo - i onda kada mu je ime ostalo isto, sto je do sada bilo dovoljno da se preskoci. Time se zatvara slucaj u kome je izmena geometrije bez nove revizije zauvek isporucivala stari PDF, DXF, STEP ili 3D PDF. Ako ponovno pravljenje ne uspe, postojeci fajl se i dalje isporucuje, a razlog se ispisuje u statusu. Uz to, pripremni korak instalacije agenta vise ne ceka bez potrebe kada gateway radi na nestandardnom portu - ranije je taj korak umeo da izgleda kao da je zastao i po dva minuta pre nego sto uopste prijavi sta nije u redu.",
+    "sha256": "8778471e0cd2a3bdf47ef53c9d254b2f4fb029ae43cec7cf01c4b9a89f57223b"
   },
   "backendNative": {
     "version": "1.1.72",
