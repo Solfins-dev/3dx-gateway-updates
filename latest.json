@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.73",
+    "version": "1.1.74",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Ispravljeno: posle ucitavanja drugog sklopa, brojaci dokumenata (PDF, DXF, STEP...) u panelu Izlaz i oznake \"generisano\" u BOM Exploreru su umeli da prikazu podatke prethodnog sklopa i da se ne osveze. Sada se brojaci za koje nema pouzdanog podatka prikazuju kao \"-\" umesto pogresnog broja, zakasnele provere pokrenute za prethodni sklop vise ne prepisuju podatke novog, a fajlovi generisani za jedan sklop se vise ne prikazuju kao da pripadaju drugom. Bez izmena u samom generisanju dokumenata.",
+    "changelog": "Ispravljeno: statusna traka generisanja (\"Korak 3 od 3 - Gotovo\", procenat i dugme Stop) vise ne ostaje na ekranu posle ucitavanja drugog sklopa - opisivala je prethodni sklop. Uz to, zavrsena traka se sada sama sklanja posle par sekundi i na srpskom jeziku (ranije je ostajala trajno). Dopuna ispravke iz 1.1.73.",
     "sha256": null
   },
   "cadBridge": {
@@ -13,10 +13,10 @@
     "sha256": "8778471e0cd2a3bdf47ef53c9d254b2f4fb029ae43cec7cf01c4b9a89f57223b"
   },
   "backendNative": {
-    "version": "1.1.73",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.73/3dx-gateway-1.1.73-win-x64.zip",
-    "sha256": "e1b5b9597d05f0f2b6d28ecb70a311e4e957f1b159bc7c0bb2b80487ed71617d",
-    "sizeBytes": 55268354,
-    "changelog": "Ispravljeno: posle ucitavanja drugog sklopa, brojaci dokumenata (PDF, DXF, STEP...) u panelu Izlaz i oznake \"generisano\" u BOM Exploreru su umeli da prikazu podatke prethodnog sklopa i da se ne osveze. Sada se brojaci za koje nema pouzdanog podatka prikazuju kao \"-\" umesto pogresnog broja, zakasnele provere pokrenute za prethodni sklop vise ne prepisuju podatke novog, a fajlovi generisani za jedan sklop se vise ne prikazuju kao da pripadaju drugom. Bez izmena u samom generisanju dokumenata."
+    "version": "1.1.74",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.74/3dx-gateway-1.1.74-win-x64.zip",
+    "sha256": "06d135e6460daf5f696ebcbfa3bc85ea4febce6c837f3d8d0eb1313368bd880d",
+    "sizeBytes": 55268412,
+    "changelog": "Ispravljeno: statusna traka generisanja (\"Korak 3 od 3 - Gotovo\", procenat i dugme Stop) vise ne ostaje na ekranu posle ucitavanja drugog sklopa - opisivala je prethodni sklop. Uz to, zavrsena traka se sada sama sklanja posle par sekundi i na srpskom jeziku (ranije je ostajala trajno). Dopuna ispravke iz 1.1.73."
   }
 }
