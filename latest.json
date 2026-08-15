@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.71",
+    "version": "1.1.73",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Ispravljeno: kada je neko izmenio geometriju dela na platformi bez podizanja revizije, generisanje je i dalje isporucivalo stare fajlove - i to je ostajalo tako trajno, jer ime fajla se ne menja pa je sistem svaki sledeci prolaz smatrao da je vec sve napravljeno. Gateway sada prepoznaje izmenu same geometrije (ranije je pratio samo izmene na stavci, ne i na 3D modelu) i trazi ponovno generisanje samo za pogodjene fajlove. Napomena: prvi prolaz posle nadogradnje osvezava sve pracene stavke jednom, pa moze trajati duze nego obicno.",
+    "changelog": "Ispravljeno: posle ucitavanja drugog sklopa, brojaci dokumenata (PDF, DXF, STEP...) u panelu Izlaz i oznake \"generisano\" u BOM Exploreru su umeli da prikazu podatke prethodnog sklopa i da se ne osveze. Sada se brojaci za koje nema pouzdanog podatka prikazuju kao \"-\" umesto pogresnog broja, zakasnele provere pokrenute za prethodni sklop vise ne prepisuju podatke novog, a fajlovi generisani za jedan sklop se vise ne prikazuju kao da pripadaju drugom. Bez izmena u samom generisanju dokumenata.",
     "sha256": null
   },
   "cadBridge": {
@@ -13,10 +13,10 @@
     "sha256": "8778471e0cd2a3bdf47ef53c9d254b2f4fb029ae43cec7cf01c4b9a89f57223b"
   },
   "backendNative": {
-    "version": "1.1.72",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.72/3dx-gateway-1.1.72-win-x64.zip",
-    "sha256": "40190e72bcf98b673deb22b788e59e79adb981fa2664db84b96a4ee70232b26b",
-    "sizeBytes": 55265526,
-    "changelog": "Tehnicka nadogradnja. Prvi paket koji stize kroz kanal azuriranja za Windows instalacije bez kontejnera. Nema izmena u radu aplikacije u odnosu na prethodnu verziju."
+    "version": "1.1.73",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.73/3dx-gateway-1.1.73-win-x64.zip",
+    "sha256": "e1b5b9597d05f0f2b6d28ecb70a311e4e957f1b159bc7c0bb2b80487ed71617d",
+    "sizeBytes": 55268354,
+    "changelog": "Ispravljeno: posle ucitavanja drugog sklopa, brojaci dokumenata (PDF, DXF, STEP...) u panelu Izlaz i oznake \"generisano\" u BOM Exploreru su umeli da prikazu podatke prethodnog sklopa i da se ne osveze. Sada se brojaci za koje nema pouzdanog podatka prikazuju kao \"-\" umesto pogresnog broja, zakasnele provere pokrenute za prethodni sklop vise ne prepisuju podatke novog, a fajlovi generisani za jedan sklop se vise ne prikazuju kao da pripadaju drugom. Bez izmena u samom generisanju dokumenata."
   }
 }
