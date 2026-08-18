@@ -7,10 +7,10 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.100",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.100/CadBridge-Setup.zip",
-    "changelog": "Ispravljeno: na racunarima na kojima agent nije umeo da pronadje lokalni kes SOLIDWORKS-a, generisanje je moglo da isporuci dokumente iz stare geometrije - i onda kada je model u medjuvremenu izmenjen. Agent sada sam pronalazi kes i u SOLIDWORKS Connector rezimu, proverava da je stari fajl zaista uklonjen pre ponovnog otvaranja, i jasno prijavljuje kada kes ne moze da pronadje. Prvo generisanje po sklopu posle nadogradnje moze da potraje duze, jer se delovi tog sklopa jednom ponovo preuzimaju.",
-    "sha256": "0c2d3937b2558dd4b73d970eda5b88f13a5c18c92e674296ba443355f628e335"
+    "version": "1.8.101",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.101/CadBridge-Setup.zip",
+    "changelog": "Ispravljeno: na racunarima na kojima agent nije umeo da pronadje lokalni kes SOLIDWORKS-a, generisanje je moglo da isporuci dokumente iz stare geometrije - i onda kada je model u medjuvremenu izmenjen. Agent sada cita gde SOLIDWORKS zaista drzi kes (ukljucujuci nalog koji je trenutno prijavljen) umesto da pretpostavlja jednu putanju, pa i opcija Ocisti kes sada zaista brise pravi folder. Dopuna ispravke iz 1.8.100, koja kod dela korisnika nije mogla da proradi. Prvo generisanje po sklopu posle nadogradnje moze da potraje duze, jer se delovi tog sklopa jednom ponovo preuzimaju.",
+    "sha256": "d32d46dc590353af1fc0f9cf83f43276bf2657760d3fbab793056c3a1f45c901"
   },
   "backendNative": {
     "version": "1.1.75",
