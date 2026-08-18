@@ -7,16 +7,16 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.99",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.99/CadBridge-Setup.zip",
-    "changelog": "Agent sada pamti iz kog CAD fajla je nastao svaki generisani dokument. Ako se taj CAD fajl u medjuvremenu promenio, dokument se pravi ponovo - i onda kada mu je ime ostalo isto, sto je do sada bilo dovoljno da se preskoci. Time se zatvara slucaj u kome je izmena geometrije bez nove revizije zauvek isporucivala stari PDF, DXF, STEP ili 3D PDF. Ako ponovno pravljenje ne uspe, postojeci fajl se i dalje isporucuje, a razlog se ispisuje u statusu. Uz to, pripremni korak instalacije agenta vise ne ceka bez potrebe kada gateway radi na nestandardnom portu - ranije je taj korak umeo da izgleda kao da je zastao i po dva minuta pre nego sto uopste prijavi sta nije u redu.",
-    "sha256": "8778471e0cd2a3bdf47ef53c9d254b2f4fb029ae43cec7cf01c4b9a89f57223b"
+    "version": "1.8.100",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.100/CadBridge-Setup.zip",
+    "changelog": "Ispravljeno: na racunarima na kojima agent nije umeo da pronadje lokalni kes SOLIDWORKS-a, generisanje je moglo da isporuci dokumente iz stare geometrije - i onda kada je model u medjuvremenu izmenjen. Agent sada sam pronalazi kes i u SOLIDWORKS Connector rezimu, proverava da je stari fajl zaista uklonjen pre ponovnog otvaranja, i jasno prijavljuje kada kes ne moze da pronadje. Prvo generisanje po sklopu posle nadogradnje moze da potraje duze, jer se delovi tog sklopa jednom ponovo preuzimaju.",
+    "sha256": "0c2d3937b2558dd4b73d970eda5b88f13a5c18c92e674296ba443355f628e335"
   },
   "backendNative": {
-    "version": "1.1.74",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.74/3dx-gateway-1.1.74-win-x64.zip",
-    "sha256": "06d135e6460daf5f696ebcbfa3bc85ea4febce6c837f3d8d0eb1313368bd880d",
-    "sizeBytes": 55268412,
-    "changelog": "Ispravljeno: statusna traka generisanja (\"Korak 3 od 3 - Gotovo\", procenat i dugme Stop) vise ne ostaje na ekranu posle ucitavanja drugog sklopa - opisivala je prethodni sklop. Uz to, zavrsena traka se sada sama sklanja posle par sekundi i na srpskom jeziku (ranije je ostajala trajno). Dopuna ispravke iz 1.1.73."
+    "version": "1.1.75",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.75/3dx-gateway-1.1.75-win-x64.zip",
+    "sha256": "e51f0d0ccda7d062cbf7b307170d9a6af30c4b3960d6ec7d0ae127c84de4a795",
+    "sizeBytes": 55275757,
+    "changelog": "Ispravljeno: kes izvornog CAD fajla koji nije potvrdjen vise se ne racuna kao svez - dokumenti se u tom slucaju generisu iznova umesto da se preskoce. Uz to, prijava sa samo jednim nalogom sada ispravno pamti izabrani nalog. Ide zajedno sa agentom 1.8.100."
   }
 }
