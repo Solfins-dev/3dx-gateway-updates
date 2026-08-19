@@ -7,16 +7,16 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.101",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.101/CadBridge-Setup.zip",
-    "changelog": "Ispravljeno: na racunarima na kojima agent nije umeo da pronadje lokalni kes SOLIDWORKS-a, generisanje je moglo da isporuci dokumente iz stare geometrije - i onda kada je model u medjuvremenu izmenjen. Agent sada cita gde SOLIDWORKS zaista drzi kes (ukljucujuci nalog koji je trenutno prijavljen) umesto da pretpostavlja jednu putanju, pa i opcija Ocisti kes sada zaista brise pravi folder. Dopuna ispravke iz 1.8.100, koja kod dela korisnika nije mogla da proradi. Prvo generisanje po sklopu posle nadogradnje moze da potraje duze, jer se delovi tog sklopa jednom ponovo preuzimaju.",
-    "sha256": "d32d46dc590353af1fc0f9cf83f43276bf2657760d3fbab793056c3a1f45c901"
+    "version": "1.8.102",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.102/CadBridge-Setup.zip",
+    "changelog": "Ispravljeno: kod dela korisnika je generisanje i posle nadogradnje na 1.8.101 i dalje isporucivalo dokumente iz stare geometrije. Uzrok nije bio u agentu - pregledac je iz prethodne verzije pamtio zabelesku da je lokalni CAD kes vec svez, pa osvezavanje nije ni pokretano i SOLIDWORKS se uopste nije otvarao. Ta zabeleska se sada jednom ponistava. Prvo generisanje posle nadogradnje zato moze da potraje duze, jer se izvorni fajlovi jednom ponovo preuzimaju. Uz to, dnevnik agenta sada jasno belezi kada je generisanje zavrseno bez pokretanja SOLIDWORKS-a, i kada trazeno oslobadjanje kesa nije uspelo. Ide zajedno sa gateway-em 1.1.76.",
+    "sha256": "5c93ccad242da660b36c3b80f586c376a9d262246e1ab2a38a897f3a5829540a"
   },
   "backendNative": {
-    "version": "1.1.75",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.75/3dx-gateway-1.1.75-win-x64.zip",
-    "sha256": "e51f0d0ccda7d062cbf7b307170d9a6af30c4b3960d6ec7d0ae127c84de4a795",
-    "sizeBytes": 55275757,
-    "changelog": "Ispravljeno: kes izvornog CAD fajla koji nije potvrdjen vise se ne racuna kao svez - dokumenti se u tom slucaju generisu iznova umesto da se preskoce. Uz to, prijava sa samo jednim nalogom sada ispravno pamti izabrani nalog. Ide zajedno sa agentom 1.8.100."
+    "version": "1.1.76",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.76/3dx-gateway-1.1.76-win-x64.zip",
+    "sha256": "e4dbeaee7d1b8d86429087a191c5dad58fe6e89b28fa416facb36d9b925f5ad0",
+    "sizeBytes": 55269056,
+    "changelog": "Ispravljeno: pamcenje o tome da li je lokalni CAD kes provereno svez ponistava se jednom posle ove nadogradnje. Bez toga je ispravka iz agenta 1.8.101 kod dela korisnika ostajala bez efekta - generisanje je preskakalo osvezavanje i isporucivalo dokumente iz stare geometrije. Prvo generisanje posle nadogradnje moze da potraje duze. Ide zajedno sa agentom 1.8.102."
   }
 }
