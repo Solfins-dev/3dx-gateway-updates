@@ -7,16 +7,16 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.102",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.102/CadBridge-Setup.zip",
-    "changelog": "Ispravljeno: kod dela korisnika je generisanje i posle nadogradnje na 1.8.101 i dalje isporucivalo dokumente iz stare geometrije. Uzrok nije bio u agentu - pregledac je iz prethodne verzije pamtio zabelesku da je lokalni CAD kes vec svez, pa osvezavanje nije ni pokretano i SOLIDWORKS se uopste nije otvarao. Ta zabeleska se sada jednom ponistava. Prvo generisanje posle nadogradnje zato moze da potraje duze, jer se izvorni fajlovi jednom ponovo preuzimaju. Uz to, dnevnik agenta sada jasno belezi kada je generisanje zavrseno bez pokretanja SOLIDWORKS-a, i kada trazeno oslobadjanje kesa nije uspelo. Ide zajedno sa gateway-em 1.1.76.",
-    "sha256": "5c93ccad242da660b36c3b80f586c376a9d262246e1ab2a38a897f3a5829540a"
+    "version": "1.8.104",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.104/CadBridge-Setup.zip",
+    "changelog": "Ispravljeno: dokumenti napravljeni od CAD podataka koji vise nisu aktuelni sada se ZADRZAVAJU umesto da se tiho isporuce. Do sada je sistem u istom trenutku znao da je fajl zastareo - i svejedno bi ga poslao u folder, u ZIP, u bazu i u ERP. Sada svaki takav fajl nosi tu oznaku sa sobom, isporuka je proverava, a uskraceni fajlovi se izricito nabroje u statusnoj liniji. Oznaka se sama brise cim se fajl stvarno regenerise. Uz to: izlazi kojima izvor nije mogao da se osvezi vise se ne preskacu nego se ponovo generisu; na racunaru gde folder SOLIDWORKS kesa nije pronadjen sada postoji jasno upozorenje umesto zelenog izvestaja; poruka o formatu vise ne kaze da fajlovi nedostaju kada su svi tu ali su stari. Ide zajedno sa gateway-em 1.1.78.",
+    "sha256": "78e53a5c05d8a78e84100e92e07ecba74dea4caf5753517ba767d6aa0ae10de5"
   },
   "backendNative": {
-    "version": "1.1.76",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.76/3dx-gateway-1.1.76-win-x64.zip",
-    "sha256": "e4dbeaee7d1b8d86429087a191c5dad58fe6e89b28fa416facb36d9b925f5ad0",
-    "sizeBytes": 55269056,
-    "changelog": "Ispravljeno: pamcenje o tome da li je lokalni CAD kes provereno svez ponistava se jednom posle ove nadogradnje. Bez toga je ispravka iz agenta 1.8.101 kod dela korisnika ostajala bez efekta - generisanje je preskakalo osvezavanje i isporucivalo dokumente iz stare geometrije. Prvo generisanje posle nadogradnje moze da potraje duze. Ide zajedno sa agentom 1.8.102."
+    "version": "1.1.78",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.78/3dx-gateway-1.1.78-win-x64.zip",
+    "sha256": "e8617d4112750b0c5a5c0004fec4e2949d8f80ebee66f48c0b7ce010815f04b6",
+    "sizeBytes": 55272772,
+    "changelog": "Ispravljeno: izvedeni izlazi (Derived Outputs) koje 3DEXPERIENCE oznaci kao starije od svog izvora vise se ne preuzimaju, ne cuvaju u bazu i ne salju u ERP - do sada je to obecavalo podesavanje ,,Iskljuci zastarele DO\", ali se obecanje nije postovalo pri preuzimanju. Ako se izlaz na platformi regenerise pod istim imenom, sada se prepoznaje po kontrolnoj sumi i preuzima ponovo umesto da se preskoci. Slika artikla u ERP-u se azurira samo kada je sinhronizacija slicica ukljucena. Uz to, isporuka sada zadrzava dokumente za koje agent ne moze da potvrdi da su aktuelni i izricito ih nabroji. Ide zajedno sa agentom 1.8.104."
   }
 }
