@@ -56,7 +56,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$HelperVersion = '1.2.0'
+$HelperVersion = '1.3.0'
 $StateDir = "$env:ProgramData\3dx-gateway"
 $StatusFile = "$StateDir\status.json"
 $LogFile = "$StateDir\last-apply.log"
@@ -204,6 +204,51 @@ function Get-StatusWithWatchdog {
 # DIAG: token-authed self-diagnosis the backend can surface instead of an opaque
 # "not available". Built with ConvertTo-Json so the log tail (Windows paths, quotes,
 # control chars) is always validly escaped.
+function Get-OwnsJson {
+    param([string]$ContainerId)
+
+    # Resolve the compose set we would act on, then ask docker which containers
+    # belong to it. Comparing against the ACTION's own target is the whole point:
+    # a check against anything else could agree while the apply still went
+    # elsewhere. Errors bubble to the caller, which reports owns:null -- unknown,
+    # never a false "no".
+    $result = [ordered]@{ owns = $null; composeDir = $null; helperVersion = $HelperVersion }
+
+    if (-not $ContainerId) { $result.error = 'no container id supplied'; return ($result | ConvertTo-Json -Compress) }
+
+    $docker = $null
+    $cand = @((Join-Path $env:ProgramFiles 'Docker\Docker\resources\bin\docker.exe'))
+    if (${env:ProgramFiles(x86)}) { $cand += (Join-Path ${env:ProgramFiles(x86)} 'Docker\Docker\resources\bin\docker.exe') }
+    foreach ($c in $cand) { if ($c -and (Test-Path $c)) { $docker = $c; break } }
+    if (-not $docker) { $g = Get-Command docker -ErrorAction SilentlyContinue; if ($g) { $docker = $g.Source } }
+    if (-not $docker) { $result.error = 'docker not found'; return ($result | ConvertTo-Json -Compress) }
+
+    if (-not (Test-Path $SetFile)) { $result.error = 'compose-set.json absent'; return ($result | ConvertTo-Json -Compress) }
+    $set = Get-Content $SetFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    $result.composeDir = $set.composeDir
+
+    # NOT $args -- that is a PowerShell automatic variable and shadowing it inside
+    # a function is a well-known way to produce baffling argument bugs later.
+    $dargs = @('compose')
+    foreach ($f in $set.composeFiles) { $dargs += @('-f', $f) }
+    $dargs += @('ps', '-aq')
+
+    Push-Location $set.composeDir
+    try { $ids = & $docker @dargs 2>$null } finally { Pop-Location }
+    if ($LASTEXITCODE -ne 0) { $result.error = 'docker compose ps failed'; return ($result | ConvertTo-Json -Compress) }
+
+    $owns = $false
+    foreach ($id in $ids) {
+        if (-not $id) { continue }
+        $id = $id.Trim()
+        # Prefix-compare both ways: a container knows itself by the 12-char
+        # hostname Docker hands it, while `ps -q` prints the full 64.
+        if ($id.StartsWith($ContainerId) -or $ContainerId.StartsWith($id)) { $owns = $true; break }
+    }
+    $result.owns = $owns
+    return ($result | ConvertTo-Json -Compress)
+}
+
 function Get-DiagJson {
     $diag = [ordered]@{ helperVersion = $HelperVersion }
 
@@ -252,9 +297,13 @@ function Get-DiagJson {
 function Invoke-HelperCommand {
     param([string]$Line)
 
-    $parts = $Line -split ' ', 2
+    # Three fields, not two: OWNS carries an argument after the token. Existing
+    # commands send "CMD <token>" and simply leave $cmdArg empty, so this stays
+    # wire-compatible with every backend that predates OWNS.
+    $parts = $Line -split ' ', 3
     $cmd = if ($parts.Length -gt 0) { $parts[0].Trim() } else { '' }
     $providedToken = if ($parts.Length -gt 1) { $parts[1].Trim() } else { '' }
+    $cmdArg = if ($parts.Length -gt 2) { $parts[2].Trim() } else { '' }
 
     # PING + STATUS could be read-only-no-auth, but for simplicity require the token on every
     # command. Re-read it fresh (self-heal) so a rotated token is honored immediately even by a
@@ -276,6 +325,21 @@ function Invoke-HelperCommand {
             catch {
                 $esc = Escape-Json $_.Exception.Message
                 return "{`"helperVersion`":`"$HelperVersion`",`"error`":`"$esc`"}"
+            }
+        }
+        'OWNS' {
+            # "Does the container that is asking belong to the stack I would update?"
+            #
+            # One helper serves the whole host, but a host can carry SEVERAL gateway
+            # stacks. Without this question a click in stack A silently runs
+            # `docker compose pull && up -d` against stack B: the apply reports
+            # success, the UI that asked never changes version, and nothing says why.
+            # Answered against the compose set we would actually act on, so the
+            # answer cannot drift from the action.
+            try { return (Get-OwnsJson $cmdArg) }
+            catch {
+                $esc = Escape-Json $_.Exception.Message
+                return "`"owns`":null,`"error`":`"$esc`"}"
             }
         }
         'APPLY' {
