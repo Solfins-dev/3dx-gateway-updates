@@ -7,10 +7,10 @@
     "sha256": null
   },
   "cadBridge": {
-    "version": "1.8.104",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.104/CadBridge-Setup.zip",
-    "changelog": "Ispravljeno: dokumenti napravljeni od CAD podataka koji vise nisu aktuelni sada se ZADRZAVAJU umesto da se tiho isporuce. Do sada je sistem u istom trenutku znao da je fajl zastareo - i svejedno bi ga poslao u folder, u ZIP, u bazu i u ERP. Sada svaki takav fajl nosi tu oznaku sa sobom, isporuka je proverava, a uskraceni fajlovi se izricito nabroje u statusnoj liniji. Oznaka se sama brise cim se fajl stvarno regenerise. Uz to: izlazi kojima izvor nije mogao da se osvezi vise se ne preskacu nego se ponovo generisu; na racunaru gde folder SOLIDWORKS kesa nije pronadjen sada postoji jasno upozorenje umesto zelenog izvestaja; poruka o formatu vise ne kaze da fajlovi nedostaju kada su svi tu ali su stari. Ide zajedno sa gateway-em 1.1.78.",
-    "sha256": "78e53a5c05d8a78e84100e92e07ecba74dea4caf5753517ba767d6aa0ae10de5"
+    "version": "1.8.105",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/cadbridge-v1.8.105/CadBridge-Setup.zip",
+    "changelog": "Ispravljeno: agent se sada instalira na jedno stalno mesto na racunaru, umesto da radi iz foldera Preuzimanja u koji je raspakovan. Do sada je, ako je taj folder obrisan ili je instalacija preuzeta ponovo (pa je nastao folder sa oznakom (1)), agent posle ponovnog pokretanja racunara izostajao bez ikakve poruke i morao je da se instalira iznova. Agent se sam premesta pri prvom pokretanju, a stare kopije u Preuzimanjima ostaju netaknute - vise nisu zasebne instalacije nego samo precica ka pravoj. Ispravljeno i: stavka Restart u meniju ikonice pored sata je gasila agenta umesto da ga ponovo pokrene; posle generisanja se sada zatvaraju sva koriscena dokumenta osim onih sa nesacuvanim izmenama (ranije je jedan takav dokument sprecavao zatvaranje svih ostalih, pa je ceo sklop ostajao otvoren). Dodat je zaseban dnevnik (cadbridge-lifecycle-*.log) koji belezi zasto se agent ugasio - ranije se to iz dnevnika nije moglo utvrditi. Kada saljete dnevnike na podrsku, posaljite oba fajla.",
+    "sha256": "fe2f06a7de2b2fca20f6b49c05539aee7f87f78e75d4feaf3ad6c568b66bb6d4"
   },
   "backendNative": {
     "version": "1.1.78",
