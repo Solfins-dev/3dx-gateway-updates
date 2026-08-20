@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.74",
+    "version": "1.1.79",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Ispravljeno: statusna traka generisanja (\"Korak 3 od 3 - Gotovo\", procenat i dugme Stop) vise ne ostaje na ekranu posle ucitavanja drugog sklopa - opisivala je prethodni sklop. Uz to, zavrsena traka se sada sama sklanja posle par sekundi i na srpskom jeziku (ranije je ostajala trajno). Dopuna ispravke iz 1.1.73.",
+    "changelog": "Ispravljeno: na serveru na kom postoji vise od jedne instalacije, dugme „Primeni azuriranje“ je moglo da azurira DRUGU instalaciju umesto one koju gledate. Azuriranje bi uredno prijavilo uspeh, a prikazana verzija se ne bi promenila i isto azuriranje bi se nudilo iznova. Sada se to prepoznaje unapred: dugme se zamenjuje porukom koja imenuje instalaciju koju bi pomocni servis zapravo azurirao. Napomena: ova provera pocinje da radi tek kada se na serveru osvezi i pomocni servis za azuriranje. Uz to ispravljeno: prijava preko „Brzog prijavljivanja“ sada pamti izabranu ulogu, prostor i tenant. Do sada je statusna linija umela da prikaze ulogu iz neke ranije rucne prijave, a zapamceni tenant je nedostajao — zbog cega pracenje svezine lokalnog SOLIDWORKS kesa na takvoj stanici nije radilo.",
     "sha256": null
   },
   "cadBridge": {
@@ -13,10 +13,10 @@
     "sha256": "fe2f06a7de2b2fca20f6b49c05539aee7f87f78e75d4feaf3ad6c568b66bb6d4"
   },
   "backendNative": {
-    "version": "1.1.78",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.78/3dx-gateway-1.1.78-win-x64.zip",
-    "sha256": "e8617d4112750b0c5a5c0004fec4e2949d8f80ebee66f48c0b7ce010815f04b6",
-    "sizeBytes": 55272772,
-    "changelog": "Ispravljeno: izvedeni izlazi (Derived Outputs) koje 3DEXPERIENCE oznaci kao starije od svog izvora vise se ne preuzimaju, ne cuvaju u bazu i ne salju u ERP - do sada je to obecavalo podesavanje ,,Iskljuci zastarele DO\", ali se obecanje nije postovalo pri preuzimanju. Ako se izlaz na platformi regenerise pod istim imenom, sada se prepoznaje po kontrolnoj sumi i preuzima ponovo umesto da se preskoci. Slika artikla u ERP-u se azurira samo kada je sinhronizacija slicica ukljucena. Uz to, isporuka sada zadrzava dokumente za koje agent ne moze da potvrdi da su aktuelni i izricito ih nabroji. Ide zajedno sa agentom 1.8.104."
+    "version": "1.1.79",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.79/3dx-gateway-1.1.79-win-x64.zip",
+    "sha256": "b572d1cf13cc89e7823722fd1efaa999667858068f0819c8b6d0d0add680cd46",
+    "sizeBytes": 55276938,
+    "changelog": "Ispravljeno: na serveru na kom postoji vise od jedne instalacije, dugme „Primeni azuriranje“ je moglo da azurira DRUGU instalaciju umesto one koju gledate. Azuriranje bi uredno prijavilo uspeh, a prikazana verzija se ne bi promenila i isto azuriranje bi se nudilo iznova. Sada se to prepoznaje unapred: dugme se zamenjuje porukom koja imenuje instalaciju koju bi pomocni servis zapravo azurirao. Napomena: ova provera pocinje da radi tek kada se na serveru osvezi i pomocni servis za azuriranje. Uz to ispravljeno: prijava preko „Brzog prijavljivanja“ sada pamti izabranu ulogu, prostor i tenant. Do sada je statusna linija umela da prikaze ulogu iz neke ranije rucne prijave, a zapamceni tenant je nedostajao — zbog cega pracenje svezine lokalnog SOLIDWORKS kesa na takvoj stanici nije radilo."
   }
 }
