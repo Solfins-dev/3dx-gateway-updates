@@ -6,10 +6,12 @@
 # spawns one instance per connection (Accept=yes).
 #
 # Protocol (plain-text, line-oriented for trivial parsing):
-#   PING\n      -> {"ok":true,"helperVersion":"1.0.0"}
-#   STATUS\n    -> contents of $STATUS_FILE, or {"stage":"idle"} if absent
-#   APPLY\n     -> kicks off `docker compose pull && up -d` in the background,
-#                  returns {"started":true} immediately
+#   PING\n           -> {"ok":true,"helperVersion":"1.1.0"}
+#   STATUS\n         -> contents of $STATUS_FILE, or {"stage":"idle"} if absent
+#   APPLY\n          -> kicks off `docker compose pull && up -d` in the background,
+#                       returns {"started":true} immediately
+#   OWNS <id>\n      -> {"owns":true|false,"composeDir":"...","composeFiles":"..."}
+#                       Does container <id> belong to the stack I would update?
 #
 # Status file is written by the background apply job at each stage:
 #   {"stage":"pulling","startedAt":"<iso8601>"}
@@ -43,7 +45,7 @@ done
 STATE_DIR="${STATE_DIR:-/var/lib/3dx-gateway-helper}"
 STATUS_FILE="$STATE_DIR/status.json"
 LOG_FILE="$STATE_DIR/last-apply.log"
-HELPER_VERSION="1.0.0"
+HELPER_VERSION="1.1.0"
 
 mkdir -p "$STATE_DIR"
 
@@ -82,6 +84,40 @@ case "$cmd" in
         else
             printf '{"stage":"idle"}\n'
         fi
+        ;;
+
+    OWNS*)
+        # "Does the container that is asking belong to the stack I would update?"
+        #
+        # A host runs ONE helper socket, but can host SEVERAL gateway stacks: a
+        # customer install in /opt plus a dev/staging stack in a home directory.
+        # Every one of them reaches this same socket, while COMPOSE_DIR names
+        # exactly one of them. Without this question, a click in stack A silently
+        # runs `docker compose pull && up -d` against stack B -- the apply reports
+        # success, the UI that asked for it never changes version, and nothing
+        # anywhere says why. That has now bitten dev01 twice, in both directions
+        # (2026-05-18: helper aimed at the dev stack; 2026-08-20: at /opt while
+        # the browser was on the dev stack).
+        #
+        # The caller passes its own container id. We answer against the stack we
+        # would actually act on, so the answer cannot drift from the action.
+        want="${cmd#OWNS}"
+        want="${want# }"
+        owns=false
+        if [[ -n "$want" ]]; then
+            ids="$(cd "$COMPOSE_DIR" 2>/dev/null && docker compose $COMPOSE_FLAGS ps -aq 2>/dev/null || true)"
+            while IFS= read -r id; do
+                [[ -z "$id" ]] && continue
+                # Prefix-compare both ways: a container knows itself by the 12-char
+                # hostname Docker hands it, while `ps -q` prints the full 64.
+                if [[ "$id" == "$want"* || "$want" == "$id"* ]]; then
+                    owns=true
+                    break
+                fi
+            done <<< "$ids"
+        fi
+        printf '{"owns":%s,"composeDir":"%s","composeFiles":"%s","helperVersion":"%s"}\n' \
+            "$owns" "$(json_escape "$COMPOSE_DIR")" "$(json_escape "$COMPOSE_FILES_RAW")" "$HELPER_VERSION"
         ;;
 
     APPLY)
