@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.79",
+    "version": "1.1.80",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Ispravljeno: na serveru na kom postoji vise od jedne instalacije, dugme „Primeni azuriranje“ je moglo da azurira DRUGU instalaciju umesto one koju gledate. Azuriranje bi uredno prijavilo uspeh, a prikazana verzija se ne bi promenila i isto azuriranje bi se nudilo iznova. Sada se to prepoznaje unapred: dugme se zamenjuje porukom koja imenuje instalaciju koju bi pomocni servis zapravo azurirao. Napomena: ova provera pocinje da radi tek kada se na serveru osvezi i pomocni servis za azuriranje. Uz to ispravljeno: prijava preko „Brzog prijavljivanja“ sada pamti izabranu ulogu, prostor i tenant. Do sada je statusna linija umela da prikaze ulogu iz neke ranije rucne prijave, a zapamceni tenant je nedostajao — zbog cega pracenje svezine lokalnog SOLIDWORKS kesa na takvoj stanici nije radilo.",
+    "changelog": "Ispravljeno: prenos u ERP je umeo da prijavi uspeh iako artikal u Pantheonu nije bio upisan. Uspeh se sada potvrdjuje odgovorom ERP-a -- proverava se da li je sifra artikla stvarno zapisana -- a ne vise samim tim sto veza nije pukla. Ranije se posledica videla tek dve faze kasnije, kao neobjasnjiva greska pri kreiranju radnog naloga, dok je sam posao stajao kao uspesno zavrsen. Ako je deo stavki prosao a deo nije, posao se sada zavrsava kao delimican (zuto) umesto kao uspesan, i stavka koja nije prosla vise se ne pamti kao preneta -- sledeci prenos je pokusava ponovo. Napomena: poslovi koji su do sada izgledali uspesno mogu od sada biti prikazani kao delimicni ili neuspesni; to nije nova greska nego prikaz stanja koje je i ranije postojalo. Ako ERP umesto sifre artikla vrati zvezdice, poruka sada imenuje uzrok -- automatsko sifriranje na Pantheon strani. Uz to: slanje dokumenata u DMS, koje na nekim sistemima ne uspeva, vise ne trosi po sto sekundi na svaki fajl -- posle prvog takvog neuspeha preostali fajlovi se preskacu, uz zaseban zapis za svaki preskoceni fajl.",
     "sha256": null
   },
   "cadBridge": {
@@ -13,10 +13,10 @@
     "sha256": "fe2f06a7de2b2fca20f6b49c05539aee7f87f78e75d4feaf3ad6c568b66bb6d4"
   },
   "backendNative": {
-    "version": "1.1.79",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.79/3dx-gateway-1.1.79-win-x64.zip",
-    "sha256": "b572d1cf13cc89e7823722fd1efaa999667858068f0819c8b6d0d0add680cd46",
-    "sizeBytes": 55276938,
-    "changelog": "Ispravljeno: na serveru na kom postoji vise od jedne instalacije, dugme „Primeni azuriranje“ je moglo da azurira DRUGU instalaciju umesto one koju gledate. Azuriranje bi uredno prijavilo uspeh, a prikazana verzija se ne bi promenila i isto azuriranje bi se nudilo iznova. Sada se to prepoznaje unapred: dugme se zamenjuje porukom koja imenuje instalaciju koju bi pomocni servis zapravo azurirao. Napomena: ova provera pocinje da radi tek kada se na serveru osvezi i pomocni servis za azuriranje. Uz to ispravljeno: prijava preko „Brzog prijavljivanja“ sada pamti izabranu ulogu, prostor i tenant. Do sada je statusna linija umela da prikaze ulogu iz neke ranije rucne prijave, a zapamceni tenant je nedostajao — zbog cega pracenje svezine lokalnog SOLIDWORKS kesa na takvoj stanici nije radilo."
+    "version": "1.1.80",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.80/3dx-gateway-1.1.80-win-x64.zip",
+    "sha256": "174003f67aac70291746545b0712fe47904c85b39594ddf14f721bca917719e2",
+    "sizeBytes": 55298447,
+    "changelog": "Ispravljeno: prenos u ERP je umeo da prijavi uspeh iako artikal u Pantheonu nije bio upisan. Uspeh se sada potvrdjuje odgovorom ERP-a -- proverava se da li je sifra artikla stvarno zapisana -- a ne vise samim tim sto veza nije pukla. Ranije se posledica videla tek dve faze kasnije, kao neobjasnjiva greska pri kreiranju radnog naloga, dok je sam posao stajao kao uspesno zavrsen. Ako je deo stavki prosao a deo nije, posao se sada zavrsava kao delimican (zuto) umesto kao uspesan, i stavka koja nije prosla vise se ne pamti kao preneta -- sledeci prenos je pokusava ponovo. Napomena: poslovi koji su do sada izgledali uspesno mogu od sada biti prikazani kao delimicni ili neuspesni; to nije nova greska nego prikaz stanja koje je i ranije postojalo. Ako ERP umesto sifre artikla vrati zvezdice, poruka sada imenuje uzrok -- automatsko sifriranje na Pantheon strani. Uz to: slanje dokumenata u DMS, koje na nekim sistemima ne uspeva, vise ne trosi po sto sekundi na svaki fajl -- posle prvog takvog neuspeha preostali fajlovi se preskacu, uz zaseban zapis za svaki preskoceni fajl."
   }
 }
