@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "backend": {
-    "version": "1.1.81",
+    "version": "1.1.82",
     "downloadUrl": "https://github.com/orgs/Solfins-dev/packages/container/package/3dx-gateway",
-    "changelog": "Poboljsana dijagnostika prenosa dokumenata u ERP. Kada slanje dokumenata ne uspe, izvestaj sada proverava i da li skladiste dokumenata na strani ERP-a uopste odgovara. To je cest uzrok: dokumenti se u ERP-u ne cuvaju u bazi nego u zasebnom skladistu, pa kada ono nije dostupno ERP odbije zahtev bez ijedne poruke, posle punog minuta cekanja. Ranije se iz izvestaja to nije moglo videti. Uz to ispravljeno: kada izabrana vrsta dokumenta i status nisu kombinacija koju ERP prihvata, poruka sada nabraja kombinacije koje jesu dozvoljene -- do sada je pisalo samo da izabrana ne valja, pa se nije imalo sta izabrati umesto nje.",
+    "changelog": "Poruka o neuspelom slanju dokumenta sada imenuje razlog koji je ERP vratio. Kada ERP odbije fajl, u izvestaju sada pise sifra greske, naziv skladista i da li to skladiste uopste prima fajlove -- ranije je sve to bilo skriveno u skracenom tehnickom odgovoru. Kada skladiste ne prima fajlove, prenos preostalih dokumenata se odmah zaustavlja, jer bi svaki sledeci fajl bio odbijen na isti nacin. Uz to: dijagnostika sada razlikuje skladiste u koje bi isao SLEDECI dokument od skladista koje su koristili raniji dokumenti -- staro nedostupno skladiste znaci samo da se stari fajlovi ne mogu preuzeti, ne i da je novi prenos u problemu. I jos: ucitavanje sifarnika iz ERP-a vise ne moze da vrati polovicnu listu bez upozorenja -- ako podaci o bazi nedostaju, to sada pise u odgovoru umesto da lista tiho ostane prazna.",
     "sha256": null
   },
   "cadBridge": {
@@ -13,10 +13,10 @@
     "sha256": "fe2f06a7de2b2fca20f6b49c05539aee7f87f78e75d4feaf3ad6c568b66bb6d4"
   },
   "backendNative": {
-    "version": "1.1.81",
-    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.81/3dx-gateway-1.1.81-win-x64.zip",
-    "sha256": "329054e8a70daf779d7fd6846556140d9dcf5c75713667d93f97615b8e9ee8ea",
-    "sizeBytes": 55312527,
-    "changelog": "Poboljsana dijagnostika prenosa dokumenata u ERP. Kada slanje dokumenata ne uspe, izvestaj sada proverava i da li skladiste dokumenata na strani ERP-a uopste odgovara. To je cest uzrok: dokumenti se u ERP-u ne cuvaju u bazi nego u zasebnom skladistu, pa kada ono nije dostupno ERP odbije zahtev bez ijedne poruke, posle punog minuta cekanja. Ranije se iz izvestaja to nije moglo videti. Uz to ispravljeno: kada izabrana vrsta dokumenta i status nisu kombinacija koju ERP prihvata, poruka sada nabraja kombinacije koje jesu dozvoljene -- do sada je pisalo samo da izabrana ne valja, pa se nije imalo sta izabrati umesto nje."
+    "version": "1.1.82",
+    "downloadUrl": "https://github.com/Solfins-dev/3dx-gateway-updates/releases/download/native-v1.1.82/3dx-gateway-1.1.82-win-x64.zip",
+    "sha256": "85bfe19c6739d62e7e8f3af0b07e8f0594e013bd4e78f4d59845b77e01982a10",
+    "sizeBytes": 55315158,
+    "changelog": "Poruka o neuspelom slanju dokumenta sada imenuje razlog koji je ERP vratio. Kada ERP odbije fajl, u izvestaju sada pise sifra greske, naziv skladista i da li to skladiste uopste prima fajlove -- ranije je sve to bilo skriveno u skracenom tehnickom odgovoru. Kada skladiste ne prima fajlove, prenos preostalih dokumenata se odmah zaustavlja, jer bi svaki sledeci fajl bio odbijen na isti nacin. Uz to: dijagnostika sada razlikuje skladiste u koje bi isao SLEDECI dokument od skladista koje su koristili raniji dokumenti -- staro nedostupno skladiste znaci samo da se stari fajlovi ne mogu preuzeti, ne i da je novi prenos u problemu. I jos: ucitavanje sifarnika iz ERP-a vise ne moze da vrati polovicnu listu bez upozorenja -- ako podaci o bazi nedostaju, to sada pise u odgovoru umesto da lista tiho ostane prazna."
   }
 }
